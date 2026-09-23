@@ -74,7 +74,7 @@ async def onboarding_repo(engine: AsyncEngine):
                 text(
                     "TRUNCATE TABLE saved_places, worker_profiles, "
                     "workplace_memberships, onboarding_states, "
-                    "circle_invites, circle_members, circles, users CASCADE"
+                    "users CASCADE"
                 )
             )
 
@@ -82,26 +82,6 @@ async def onboarding_repo(engine: AsyncEngine):
     yield PostgresOnboardingRepository(create_session_factory(engine))
     await truncate()
 
-
-@pytest_asyncio.fixture
-async def circles_repo(engine: AsyncEngine):
-    """A Postgres circles repository over a clean set of tables."""
-    from sqlalchemy import text
-
-    from app.circles.postgres import PostgresCirclesRepository
-
-    async def truncate() -> None:
-        async with engine.begin() as connection:
-            await connection.execute(
-                text(
-                    "TRUNCATE TABLE circle_invites, circle_members, circles, "
-                    "users CASCADE"
-                )
-            )
-
-    await truncate()
-    yield PostgresCirclesRepository(create_session_factory(engine))
-    await truncate()
 
 
 @pytest_asyncio.fixture

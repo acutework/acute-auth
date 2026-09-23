@@ -25,7 +25,12 @@ class TokenService:
         self._settings = settings
 
     def create_access_token(
-        self, *, user_id: str, mobile: str, token_version: int = 0
+        self,
+        *,
+        user_id: str,
+        mobile: str,
+        token_version: int = 0,
+        name: str | None = None,
     ) -> str:
         return self._create(
             TokenType.ACCESS,
@@ -33,6 +38,7 @@ class TokenService:
             mobile=mobile,
             ttl=timedelta(minutes=self._settings.access_token_ttl_minutes),
             token_version=token_version,
+            name=name,
         )
 
     def create_refresh_token(
@@ -77,6 +83,7 @@ class TokenService:
         mobile: str,
         ttl: timedelta,
         token_version: int = 0,
+        name: str | None = None,
     ) -> str:
         now = datetime.now(timezone.utc)
         claims = {
@@ -87,6 +94,10 @@ class TokenService:
             "jti": uuid.uuid4().hex,
             # Checked against the user's current token_version on every use.
             "ver": token_version,
+            # Carried so other services can show who is acting without asking
+            # identity for it. Goes stale within the access token's lifetime,
+            # which for a display name is harmless.
+            "name": name,
             "iat": int(now.timestamp()),
             "exp": int((now + ttl).timestamp()),
         }

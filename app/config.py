@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     otp_verify_limit: int = 10
     otp_verify_window_seconds: int = 900
 
+    # Shared with other Acutework services so they can call /internal/*.
+    # Blank disables those endpoints entirely - a deployment that forgets to
+    # set it fails closed rather than open.
+    internal_api_key: str = ""
+
     # Address lookup. Blank disables search; users can still type an address.
     # "google" is wired today - see app/places/registry.py to add a free one.
     places_provider: str = "google"
@@ -54,15 +59,8 @@ class Settings(BaseSettings):
     msg91_otp_verify_url: str = "https://control.msg91.com/api/v5/otp/verify"
     msg91_otp_retry_url: str = "https://control.msg91.com/api/v5/otp/retry"
     # Circle invitations go out over MSG91's flow API. Blank template id means
-    # no SMS is attempted at all - see app/circles/notifier.py.
-    msg91_invite_template_id: str = ""
-    msg91_flow_url: str = "https://control.msg91.com/api/v5/flow/"
 
     # Circles. An invitation SMS costs money, so sends are capped per inviter.
-    invite_send_limit: int = 20
-    invite_send_window_seconds: int = 86400
-    app_invite_base_url: str = "https://acutework.app/join"
-    invite_link_ttl_seconds: int = 604800  # a week
 
 
     @property

@@ -16,12 +16,6 @@ from app.catalog.repository import (
     PostgresCatalogRepository,
     StaticCatalogRepository,
 )
-from app.circles.memory import InMemoryCirclesRepository
-from app.circles.postgres import PostgresCirclesRepository
-from app.circles.notifier import InviteNotifier
-from app.circles.registry import build_invite_dispatcher
-from app.circles.repository import CirclesRepository
-from app.circles.service import CirclesService
 from app.config import Settings, get_settings
 from app.core.errors import InvalidToken
 from app.core.security import TokenService
@@ -95,38 +89,6 @@ def build_onboarding_service(
     )
 
 
-def build_circles_repository(
-    settings: Settings, session_factory=None
-) -> CirclesRepository:
-    if settings.uses_postgres:
-        return PostgresCirclesRepository(
-            session_factory or build_session_factory(settings)
-        )
-    return InMemoryCirclesRepository()
-
-
-def build_circles_service(
-    settings: Settings,
-    *,
-    repository: CirclesRepository | None = None,
-    redis: Redis | None = None,
-    users: UserRepository | None = None,
-    notifier: InviteNotifier | None = None,
-) -> CirclesService:
-    return CirclesService(
-        repository=repository or build_circles_repository(settings),
-        # The dispatcher shares the auth service's user store, so "does this
-        # number already have an account" is answered once and consistently.
-        notifier=notifier
-        or build_invite_dispatcher(settings, users or build_user_repository(settings)),
-        rate_limiter=build_rate_limiter(redis),
-        send_limit=RateLimit(
-            limit=settings.invite_send_limit,
-            window_seconds=settings.invite_send_window_seconds,
-        ),
-        invite_base_url=settings.app_invite_base_url,
-        invite_ttl_seconds=settings.invite_link_ttl_seconds,
-    )
 
 
 def build_challenge_store(redis: Redis | None) -> OtpChallengeStore:
@@ -220,18 +182,6 @@ def get_onboarding_service() -> OnboardingService:
     )
 
 
-def get_circles_service() -> CirclesService:
-    settings = get_settings()
-    return _singleton(
-        "circles_service",
-        lambda: build_circles_service(
-            settings,
-            repository=build_circles_repository(settings, _shared_session_factory()),
-            redis=_redis_client(),
-            users=build_user_repository(settings, _shared_session_factory()),
-        ),
-    )
-
 
 def get_catalog_repository() -> CatalogRepository:
     settings = get_settings()
@@ -244,10 +194,16 @@ def get_catalog_repository() -> CatalogRepository:
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 
 
+def get_settings_dep() -> Settings:
+    return get_settings()
+
+
+SettingsDep = Annotated[Settings, Depends(get_settings_dep)]
+
+
+
 OnboardingServiceDep = Annotated[OnboardingService, Depends(get_onboarding_service)]
 
-
-CirclesServiceDep = Annotated[CirclesService, Depends(get_circles_service)]
 
 
 CatalogDep = Annotated[CatalogRepository, Depends(get_catalog_repository)]
@@ -271,7 +227,7 @@ CurrentUserDep = Annotated[User, Depends(current_user)]
 
 async def aclose() -> None:
     """Release whatever was actually built: HTTP clients, Redis, DB pools."""
-    for key in ("auth_service", "onboarding_service", "circles_service"):
+    for key in ("auth_service", "onboarding_service"):
         service = _singletons.get(key)
         if service is not None:
             await service.aclose()

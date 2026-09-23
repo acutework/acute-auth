@@ -125,51 +125,6 @@ An individual (not joining an organisation) must save at least one place first -
 with no organisation to alert, a saved place is the only thing an SOS can point
 responders at.
 
-### Circles
-
-A circle is a named group one worker chooses to alert - Family, Ward team -
-each with its own "include in SOS alerts" toggle. Members are invited by mobile
-number, and **an invitee is not a responder**: nobody is alerted until they
-accept, so no one is signed up to answer an emergency by someone else typing
-their number.
-
-| Method | Path                                  | Purpose                                  |
-|--------|---------------------------------------|------------------------------------------|
-| GET    | `/circles`                            | Circles I own or have accepted           |
-| POST   | `/circles`                            | Create one, inviting people by mobile    |
-| GET    | `/circles/invitations`                | Circles inviting me, still unanswered    |
-| GET    | `/circles/{id}`                       | One circle, with its members             |
-| PATCH  | `/circles/{id}`                       | Rename, or toggle SOS alerts             |
-| DELETE | `/circles/{id}`                       | Delete it (owner only)                   |
-| POST   | `/circles/{id}/members`               | Invite another number                    |
-| DELETE | `/circles/{id}/members/{member_id}`   | Remove a member (owner only)             |
-| POST   | `/circles/{id}/invite-link`           | A shareable join link                    |
-| POST   | `/circles/join`                       | Join by a link's token                   |
-| POST   | `/circles/{id}/accept`                | Accept an invite sent to my number       |
-| POST   | `/circles/{id}/decline`               | Decline it                               |
-
-Only the owner may rename, toggle, delete, or add and remove members. The
-creator is an accepted member with `is_owner` from the start. Inviting your own
-number is refused (422), and inviting a number already in the circle is refused
-(409) - which is also what stops the same person being messaged twice. Someone
-who declined can be invited again.
-
-**Invitation delivery** is behind a contract, exactly as the OTP provider is.
-`InviteDispatcher` is the only place that decides: a number that already has an
-account gets a push, a number that does not gets an SMS over MSG91's flow API.
-Nothing there ever raises - an invitation that could not be delivered is
-recorded on the member as `delivery: "none"` and the circle is created anyway,
-because losing a circle over one unreachable number would be far worse.
-
-> Push is **not yet real delivery**. `PushInviteNotifier` logs and reports
-> `push`; making it real needs device tokens on `users`, Firebase credentials
-> and an FCM call. Until then an invited user with an account sees the
-> invitation when the app calls `GET /circles/invitations`.
-
-Every SMS costs money, so sends are rate limited per inviting user
-(`INVITE_SEND_LIMIT` per `INVITE_SEND_WINDOW_SECONDS`, 20 a day by default) and
-the whole budget for a request is checked before anything is written - a circle
-is never left half-created because the budget ran out. Exceeding it answers 429.
 
 ## Address lookup
 
@@ -193,6 +148,34 @@ can still match the nearest saved place with no lookup at all.
 
 Pass a `session_token` through a typing run and its details call, and the
 provider bills the whole run as one session rather than per keystroke.
+
+## Talking to other services
+
+Other Acutework services verify the tokens this one issues, using the same
+`JWT_SECRET` (HS256). They verify only - nothing else mints tokens. Worth
+moving to RS256 with a JWKS endpoint before there are many services, so a
+service that can verify cannot also issue.
+
+Access tokens carry a `name` claim, so another service can show who is acting
+without asking identity for it. It goes stale within the access token's
+lifetime, which for a display name is harmless.
+
+### `GET /internal/users/exists`
+
+The one question identity answers for another service: does this mobile number
+have an account? acute-core asks before sending a circle invitation, so someone
+who already has the app gets a push instead of a paid SMS.
+
+```
+GET /internal/users/exists?mobile=919999999999
+X-Internal-Key: <INTERNAL_API_KEY>
+-> {"exists": true}
+```
+
+It returns a bare boolean and nothing else - no id, no name - so it cannot
+become a back door into the user table. A blank `INTERNAL_API_KEY` disables it
+entirely, so a deployment that forgets to set one fails closed. It is excluded
+from the OpenAPI schema.
 
 ## Storage
 
@@ -369,7 +352,6 @@ after each test, and use Redis db 15 rather than the app's own.
 ```
 app/
   catalog/         picker option lists (seeded by a migration)
-  circles/         circle domain, repositories, invite notifiers, the rules
   onboarding/      domain, repositories and the per-role rules
   places/          address provider contract, Google, registry
   db/              engine, session factory, Redis client, declarative Base

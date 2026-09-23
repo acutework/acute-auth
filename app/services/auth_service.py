@@ -126,6 +126,15 @@ class AuthService:
         claims = await self._decode_live(refresh_token, TokenType.REFRESH)
         await self._revoke(claims)
 
+    async def has_account(self, mobile: str) -> bool:
+        """Whether a number is registered.
+
+        Asked by acute-core so an invitation to someone who already has the
+        app goes by push rather than costing an SMS. Deliberately returns a
+        bare boolean - nothing about the user leaves identity.
+        """
+        return await self._users.get_by_mobile(normalise_mobile(mobile)) is not None
+
     async def current_user(self, access_token: str) -> User:
         claims = self._tokens.decode(access_token, expected_type=TokenType.ACCESS)
         user = await self._users.get_by_id(claims["sub"])
@@ -155,7 +164,10 @@ class AuthService:
     def _issue_tokens(self, user: User) -> TokenPair:
         return TokenPair(
             access_token=self._tokens.create_access_token(
-                user_id=user.id, mobile=user.mobile, token_version=user.token_version
+                user_id=user.id,
+                mobile=user.mobile,
+                token_version=user.token_version,
+                name=user.name,
             ),
             refresh_token=self._tokens.create_refresh_token(
                 user_id=user.id, mobile=user.mobile, token_version=user.token_version

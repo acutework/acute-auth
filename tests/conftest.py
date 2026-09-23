@@ -5,12 +5,10 @@ from app.config import Settings
 from app.deps import (
     build_auth_service,
     build_catalog_repository,
-    build_circles_service,
     build_onboarding_service,
     build_user_repository,
     get_auth_service,
     get_catalog_repository,
-    get_circles_service,
     get_onboarding_service,
 )
 from app.main import app
@@ -49,7 +47,7 @@ def client(settings: Settings) -> TestClient:
     """The real app, with every service built fresh for this test.
 
     Fresh services mean no user, OTP, rate-limit, revocation, onboarding or
-    circle state leaks between tests.
+    onboarding state leaks between tests.
     """
     # One user store across both services, so a number that signed in here is
     # the same number the invite dispatcher recognises as having an account.
@@ -57,12 +55,10 @@ def client(settings: Settings) -> TestClient:
     auth = build_auth_service(settings, users=users)
     onboarding = build_onboarding_service(settings)
     catalog = build_catalog_repository(settings)
-    circles = build_circles_service(settings, users=users)
 
     app.dependency_overrides[get_auth_service] = lambda: auth
     app.dependency_overrides[get_onboarding_service] = lambda: onboarding
     app.dependency_overrides[get_catalog_repository] = lambda: catalog
-    app.dependency_overrides[get_circles_service] = lambda: circles
     yield TestClient(app)
     app.dependency_overrides.clear()
 
