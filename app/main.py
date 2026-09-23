@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.api.circle_routes import router as circles_router
 from app.api.onboarding_routes import (
     catalog_router,
     places_router,
@@ -22,7 +23,7 @@ logging.basicConfig(level=logging.INFO)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
-    # Release the MSG91 HTTP client and the Redis connection.
+    # Release the MSG91 HTTP clients and the Redis connection.
     from app.deps import aclose
 
     await aclose()
@@ -54,3 +55,4 @@ app.include_router(auth_router)
 app.include_router(onboarding_router)
 app.include_router(places_router)
 app.include_router(catalog_router)
+app.include_router(circles_router)

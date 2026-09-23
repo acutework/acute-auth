@@ -137,3 +137,33 @@ class SessionSuperseded(AuthError):
     status_code = 401
     code = "session_superseded"
     message = "You were signed out. Sign in again."
+
+
+class CircleNotFound(AuthError):
+    status_code = 404
+    code = "circle_not_found"
+    message = "No such circle."
+
+
+class NotCircleOwner(AuthError):
+    status_code = 403
+    code = "not_circle_owner"
+    message = "Only the circle's owner can do that."
+
+
+class AlreadyCircleMember(AuthError):
+    status_code = 409
+    code = "already_member"
+    message = "That number is already in this circle."
+
+
+class InviteInvalid(AuthError):
+    status_code = 400
+    code = "invite_invalid"
+    message = "This invitation is not valid or has expired."
+
+
+class CannotInviteSelf(AuthError):
+    status_code = 422
+    code = "cannot_invite_self"
+    message = "You are already in your own circle."

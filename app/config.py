@@ -53,6 +53,16 @@ class Settings(BaseSettings):
     msg91_otp_send_url: str = "https://control.msg91.com/api/v5/otp"
     msg91_otp_verify_url: str = "https://control.msg91.com/api/v5/otp/verify"
     msg91_otp_retry_url: str = "https://control.msg91.com/api/v5/otp/retry"
+    # Circle invitations go out over MSG91's flow API. Blank template id means
+    # no SMS is attempted at all - see app/circles/notifier.py.
+    msg91_invite_template_id: str = ""
+    msg91_flow_url: str = "https://control.msg91.com/api/v5/flow/"
+
+    # Circles. An invitation SMS costs money, so sends are capped per inviter.
+    invite_send_limit: int = 20
+    invite_send_window_seconds: int = 86400
+    app_invite_base_url: str = "https://acutework.app/join"
+    invite_link_ttl_seconds: int = 604800  # a week
 
 
     @property

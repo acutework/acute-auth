@@ -4,6 +4,11 @@ Alembic's env.py imports it, so a new model only needs a line here to be
 picked up by autogenerate.
 """
 
+from app.models.circles import (  # noqa: F401
+    CircleInviteRow,
+    CircleMemberRow,
+    CircleRow,
+)
 from app.models.onboarding import (  # noqa: F401
     CatalogItemRow,
     OnboardingStateRow,
