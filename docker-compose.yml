@@ -1,0 +1,44 @@
+# Local Postgres and Redis for acute-auth.
+#
+# The API itself is NOT containerised - it runs on the host with `uv run
+# uvicorn`, so reloads are instant and a debugger can attach.
+#
+#   docker compose up -d
+#   uv run alembic upgrade head
+#   uv run uvicorn app.main:app --reload --port 8000
+#
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: acute-auth-db
+    environment:
+      POSTGRES_DB: acute_auth
+      POSTGRES_USER: acute_auth
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-acute_auth}
+    ports:
+      - "5433:5432"
+    volumes:
+      - acute-auth-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acute_auth -d acute_auth"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8-alpine
+    container_name: acute-auth-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - acute-auth-redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  acute-auth-pgdata:
+  acute-auth-redisdata:

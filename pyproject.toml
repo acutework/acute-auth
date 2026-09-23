@@ -1,0 +1,45 @@
+[project]
+name = "acute-auth"
+version = "0.1.0"
+description = "Mobile OTP authentication and authorisation microservice"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "python-jose[cryptography]>=3.3",
+    "httpx>=0.28.1",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.31.0",
+    "alembic>=1.20.0",
+    "redis>=5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.27",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# Integration tests need `docker compose up -d`; they are excluded by default
+# and run with `pytest -m integration`.
+addopts = "-m 'not integration'"
+markers = [
+    "integration: needs a real Postgres and Redis",
+]
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=1.4.0",
+]
