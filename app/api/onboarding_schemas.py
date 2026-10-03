@@ -78,6 +78,14 @@ class PlaceDetailsOut(BaseModel):
     provider: str | None = None
 
 
+class ReverseGeocodeOut(BaseModel):
+    title: str
+    subtitle: str | None = None
+    address_line: str
+    latitude: float
+    longitude: float
+
+
 class OnboardingStateOut(BaseModel):
     """What the app reads to decide where to resume."""
 

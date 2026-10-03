@@ -16,6 +16,7 @@ from app.api.onboarding_schemas import (
     PlaceIn,
     PlaceOut,
     PlaceSuggestionOut,
+    ReverseGeocodeOut,
     ProfileCompletionOut,
     ProfileIn,
     ProfileOut,
@@ -228,6 +229,22 @@ async def search_places(
     """Address autocomplete, proxied so the provider key never reaches the app."""
     suggestions = await service.search_addresses(q, session_token=session_token)
     return [PlaceSuggestionOut(**s.__dict__) for s in suggestions]
+
+
+@places_router.get("/reverse", response_model=ReverseGeocodeOut)
+async def reverse_geocode(
+    user: CurrentUserDep,
+    service: OnboardingServiceDep,
+    lat: float = Query(ge=-90, le=90),
+    lng: float = Query(ge=-180, le=180),
+) -> ReverseGeocodeOut:
+    """What the place at a point is called, for the app's location header.
+
+    Proxied like search, so the provider key stays here. The range checks also
+    refuse NaN and infinity before any paid call is made.
+    """
+    result = await service.reverse_geocode(lat, lng)
+    return ReverseGeocodeOut(**result.__dict__)
 
 
 @places_router.get("/details/{provider_place_id}", response_model=PlaceDetailsOut)

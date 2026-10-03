@@ -113,6 +113,12 @@ class PlaceSearchDisabled(AuthError):
     message = "Address search is not configured. Type the address instead."
 
 
+class AddressNotFound(AuthError):
+    status_code = 404
+    code = "address_not_found"
+    message = "No address is known for this location."
+
+
 class OnboardingIncomplete(AuthError):
     status_code = 422
     code = "onboarding_incomplete"

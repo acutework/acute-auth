@@ -10,7 +10,12 @@ ever requested - the rules below check only that required fields are present.
 import uuid
 from dataclasses import dataclass, field
 
-from app.core.errors import OnboardingIncomplete, PlaceNotFound, ProfileRequired
+from app.core.errors import (
+    AddressNotFound,
+    OnboardingIncomplete,
+    PlaceNotFound,
+    ProfileRequired,
+)
 from app.onboarding.models import (
     MembershipStatus,
     OnboardingState,
@@ -23,7 +28,12 @@ from app.onboarding.models import (
 )
 from app.onboarding.completion import ProfileCompletion, compute_completion
 from app.onboarding.repository import OnboardingRepository
-from app.places.base import PlaceDetails, PlaceSearchProvider, PlaceSuggestion
+from app.places.base import (
+    PlaceDetails,
+    PlaceSearchProvider,
+    PlaceSuggestion,
+    ReverseResult,
+)
 
 
 @dataclass
@@ -184,6 +194,16 @@ class OnboardingService:
         return await self._places.details(
             provider_place_id, session_token=session_token
         )
+
+    async def reverse_geocode(self, latitude: float, longitude: float) -> ReverseResult:
+        if self._places is None:
+            from app.core.errors import PlaceSearchDisabled
+
+            raise PlaceSearchDisabled()
+        result = await self._places.reverse(latitude, longitude)
+        if result is None:
+            raise AddressNotFound()
+        return result
 
     @property
     def place_provider_name(self) -> str | None:
