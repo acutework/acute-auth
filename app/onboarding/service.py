@@ -7,6 +7,9 @@ Every credential here is self-declared. Nothing is verified, and no document is
 ever requested - the rules below check only that required fields are present.
 """
 
+import logging
+import math
+import re
 import uuid
 from dataclasses import dataclass, field
 
@@ -35,6 +38,8 @@ from app.places.base import (
     ReverseResult,
 )
 
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class OnboardingSnapshot:
@@ -205,6 +210,36 @@ class OnboardingService:
             raise AddressNotFound()
         return result
 
+    async def pincode_at(
+        self, user_id: str, latitude: float, longitude: float
+    ) -> str | None:
+        """The pincode at a point, for matching an SOS to associations.
+
+        Google first. When it cannot answer - down, refused, or no postal code
+        - the pincode in the address of the worker's own saved place within
+        500 m, because an SOS raised at work should still reach the
+        association there. Nothing is never an error: it means no match.
+        """
+        if self._places is not None:
+            try:
+                result = await self._places.reverse(latitude, longitude)
+                if result is not None and result.postal_code:
+                    return result.postal_code
+            except Exception as exc:  # noqa: BLE001 - any failure falls back
+                logger.warning("Pincode lookup fell back to saved places: %r", exc)
+        nearest, nearest_m = None, _SAVED_PLACE_RADIUS_M
+        for place in await self._repo.list_places(user_id):
+            if place.latitude is None or place.longitude is None:
+                continue
+            metres = _distance_m(latitude, longitude, place.latitude, place.longitude)
+            if metres <= nearest_m:
+                nearest, nearest_m = place, metres
+        if nearest is None:
+            return None
+        found = _PINCODE.findall(nearest.address_line or "")
+        # The last one: Indian addresses end "..., State 360311, India".
+        return found[-1] if found else None
+
     @property
     def place_provider_name(self) -> str | None:
         return self._places.name if self._places else None
@@ -258,3 +293,17 @@ def _validate_profile(profile: WorkerProfile) -> None:
 
     if missing:
         raise OnboardingIncomplete(f"Still needed: {', '.join(missing)}.")
+
+
+_SAVED_PLACE_RADIUS_M = 500.0
+_PINCODE = re.compile(r"(?<!\d)\d{6}(?!\d)")
+
+
+def _distance_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Flat-earth metres: plenty to tell whether someone is at a building."""
+    rad = math.pi / 180
+    scale = math.cos((lat1 + lat2) / 2 * rad)
+    d_lat = (lat2 - lat1) * rad
+    d_lng = (lng2 - lng1) * rad * scale
+    return math.hypot(d_lat, d_lng) * 6_371_000
+
