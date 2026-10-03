@@ -13,12 +13,36 @@ import logging
 import httpx
 
 from app.core.errors import PlaceLookupFailed, PlaceProviderUnavailable
-from app.places.base import PlaceDetails, PlaceSearchProvider, PlaceSuggestion
+from app.places.base import (
+    PlaceDetails,
+    PlaceSearchProvider,
+    PlaceSuggestion,
+    ReverseResult,
+)
 
 logger = logging.getLogger(__name__)
 
 AUTOCOMPLETE_URL = "https://places.googleapis.com/v1/places:autocomplete"
 DETAILS_URL = "https://places.googleapis.com/v1/places"
+GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
+
+# The Geocoding API takes its key as a query parameter, and httpx logs every
+# request URL at INFO. Left alone, the key would be written to the logs.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+# Most specific first: a building's name beats its street, and a street beats
+# the neighbourhood around it.
+_TITLE_TYPES = (
+    "premise",
+    "point_of_interest",
+    "establishment",
+    "route",
+    "neighborhood",
+    "sublocality_level_2",
+    "sublocality_level_1",
+    "locality",
+)
+_SUBTITLE_TYPES = ("sublocality_level_1", "locality")
 
 
 class GooglePlacesProvider(PlaceSearchProvider):
@@ -94,6 +118,63 @@ class GooglePlacesProvider(PlaceSearchProvider):
             longitude=location.get("longitude"),
         )
 
+    async def reverse(
+        self, latitude: float, longitude: float
+    ) -> ReverseResult | None:
+        params = {"latlng": f"{latitude},{longitude}", "key": self._api_key}
+        if self._language:
+            params["language"] = self._language
+        if self._region:
+            params["region"] = self._region
+
+        data = await self._send("GET", GEOCODE_URL, params=params)
+
+        status = data.get("status")
+        if status == "ZERO_RESULTS":
+            return None
+        if status != "OK":
+            # Geocoding answers 200 with the refusal in the body.
+            logger.warning(
+                "Google Geocoding refused a lookup: %s %s",
+                status,
+                str(data.get("error_message", ""))[:300],
+            )
+            raise PlaceLookupFailed("Address lookup is unavailable.")
+
+        results = [
+            r for r in data.get("results", []) if "plus_code" not in r.get("types", [])
+        ]
+        if not results:
+            return None
+        best = results[0]
+        components = best.get("address_components", [])
+
+        def named(kind: str) -> str | None:
+            return next(
+                (c["long_name"] for c in components if kind in c.get("types", [])),
+                None,
+            )
+
+        address_line = best.get("formatted_address", "")
+        title = next((n for n in map(named, _TITLE_TYPES) if n), None)
+        if title is None:
+            title, _, rest = address_line.partition(", ")
+            subtitle = rest or None
+        else:
+            parts = [n for n in map(named, _SUBTITLE_TYPES) if n and n != title]
+            subtitle = ", ".join(dict.fromkeys(parts)) or None
+        if not title:
+            return None
+
+        location = best.get("geometry", {}).get("location", {})
+        return ReverseResult(
+            title=title,
+            subtitle=subtitle,
+            address_line=address_line,
+            latitude=location.get("lat", latitude),
+            longitude=location.get("lng", longitude),
+        )
+
     async def aclose(self) -> None:
         await self._client.aclose()
 
@@ -110,10 +191,13 @@ class GooglePlacesProvider(PlaceSearchProvider):
             "X-Goog-Api-Key": self._api_key,
             "X-Goog-FieldMask": field_mask,
         }
+        return await self._send(
+            method, url, json=json, params=params, headers=headers
+        )
+
+    async def _send(self, method: str, url: str, **kwargs) -> dict:
         try:
-            response = await self._client.request(
-                method, url, json=json, params=params, headers=headers
-            )
+            response = await self._client.request(method, url, **kwargs)
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as exc:

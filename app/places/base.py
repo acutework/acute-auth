@@ -35,6 +35,17 @@ class PlaceDetails:
     longitude: float | None
 
 
+@dataclass(frozen=True)
+class ReverseResult:
+    """What a point on the map is called, for the app's location header."""
+
+    title: str
+    subtitle: str | None
+    address_line: str
+    latitude: float
+    longitude: float
+
+
 class PlaceSearchProvider(ABC):
     """The provider's name, recorded against saved places."""
 
@@ -47,6 +58,10 @@ class PlaceSearchProvider(ABC):
     @abstractmethod
     async def details(self, provider_place_id: str, *, session_token: str | None = None) -> PlaceDetails:
         """Resolve a suggestion to a full address and coordinates."""
+
+    @abstractmethod
+    async def reverse(self, latitude: float, longitude: float) -> ReverseResult | None:
+        """The address at a point, or None when the provider knows of none."""
 
     async def aclose(self) -> None:
         """Release any held resources. Default: nothing."""

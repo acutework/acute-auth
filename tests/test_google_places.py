@@ -5,6 +5,8 @@ and never as a query parameter, and a details call asks for exactly the fields
 we store.
 """
 
+import logging
+
 import httpx
 import pytest
 
@@ -157,3 +159,81 @@ class TestSearchDisabled:
 
         assert response.status_code == 501
         assert response.json()["code"] == "place_search_disabled"
+
+
+GEOCODE_RESPONSE = {
+    "status": "OK",
+    "results": [
+        # Plus codes are grid references, not addresses - they must be skipped.
+        {
+            "types": ["plus_code"],
+            "formatted_address": "3V8G+JW Mumbai",
+            "address_components": [],
+            "geometry": {"location": {"lat": 19.06, "lng": 72.83}},
+        },
+        {
+            "types": ["street_address"],
+            "formatted_address": "14, Linking Road, Bandra West, Mumbai, Maharashtra 400050, India",
+            "address_components": [
+                {"long_name": "14", "types": ["street_number"]},
+                {"long_name": "Linking Road", "types": ["route"]},
+                {
+                    "long_name": "Bandra West",
+                    "types": ["sublocality_level_1", "sublocality", "political"],
+                },
+                {"long_name": "Mumbai", "types": ["locality", "political"]},
+            ],
+            "geometry": {"location": {"lat": 19.0605, "lng": 72.8347}},
+        },
+    ],
+}
+
+
+class TestReverse:
+    async def test_the_most_specific_name_becomes_the_title(self):
+        handler, _ = responder(GEOCODE_RESPONSE)
+        provider = make_provider(handler)
+
+        result = await provider.reverse(19.0605, 72.8347)
+
+        assert result is not None
+        assert result.title == "Linking Road"
+        assert result.subtitle == "Bandra West, Mumbai"
+        assert result.address_line.startswith("14, Linking Road")
+        assert (result.latitude, result.longitude) == (19.0605, 72.8347)
+
+    async def test_the_lookup_asks_for_the_point_in_the_configured_region(self):
+        handler, seen = responder(GEOCODE_RESPONSE)
+        provider = make_provider(handler)
+
+        await provider.reverse(19.0605, 72.8347)
+
+        params = seen[0].url.params
+        assert params["latlng"] == "19.0605,72.8347"
+        assert params["language"] == "en"
+        assert params["region"] == "in"
+
+    async def test_a_point_with_no_address_is_none(self):
+        handler, _ = responder({"status": "ZERO_RESULTS", "results": []})
+        provider = make_provider(handler)
+
+        assert await provider.reverse(0.0, 0.0) is None
+
+    async def test_a_refused_key_is_a_lookup_failure(self):
+        handler, _ = responder(
+            {"status": "REQUEST_DENIED", "error_message": "API not enabled"}
+        )
+        provider = make_provider(handler)
+
+        with pytest.raises(PlaceLookupFailed):
+            await provider.reverse(19.0605, 72.8347)
+
+    async def test_the_key_never_reaches_the_logs(self, caplog):
+        # Geocoding takes the key as a query parameter, and httpx logs URLs.
+        caplog.set_level(logging.DEBUG)
+        handler, _ = responder(GEOCODE_RESPONSE)
+        provider = make_provider(handler)
+
+        await provider.reverse(19.0605, 72.8347)
+
+        assert "test-key" not in caplog.text
