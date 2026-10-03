@@ -41,6 +41,14 @@ from app.places.base import (
 
 logger = logging.getLogger(__name__)
 
+@dataclass(frozen=True)
+class PlaceAt:
+    """Where an SOS is, as acute-core needs it. Either part may be unknown."""
+
+    pincode: str | None
+    label: str | None
+
+
 @dataclass
 class OnboardingSnapshot:
     """Everything the app needs to decide where to resume."""
@@ -210,35 +218,43 @@ class OnboardingService:
             raise AddressNotFound()
         return result
 
-    async def pincode_at(
+    async def place_at(
         self, user_id: str, latitude: float, longitude: float
-    ) -> str | None:
-        """The pincode at a point, for matching an SOS to associations.
+    ) -> PlaceAt:
+        """Where an SOS is: its pincode, for the sender's associations, and a
+        name for responders, for an SOS that came without one.
 
         Google first. When it cannot answer - down, refused, or no postal code
         - the pincode in the address of the worker's own saved place within
-        500 m, because an SOS raised at work should still reach the
-        association there. Nothing is never an error: it means no match.
+        500 m. The name is that saved place when within 150 m, as the app's
+        header would say, else Google's address. Nothing is never an error.
         """
+        found: ReverseResult | None = None
         if self._places is not None:
             try:
-                result = await self._places.reverse(latitude, longitude)
-                if result is not None and result.postal_code:
-                    return result.postal_code
+                found = await self._places.reverse(latitude, longitude)
             except Exception as exc:  # noqa: BLE001 - any failure falls back
-                logger.warning("Pincode lookup fell back to saved places: %r", exc)
-        nearest, nearest_m = None, _SAVED_PLACE_RADIUS_M
+                logger.warning("Place lookup fell back to saved places: %r", exc)
+
+        nearest, nearest_m = None, math.inf
         for place in await self._repo.list_places(user_id):
             if place.latitude is None or place.longitude is None:
                 continue
             metres = _distance_m(latitude, longitude, place.latitude, place.longitude)
-            if metres <= nearest_m:
+            if metres < nearest_m:
                 nearest, nearest_m = place, metres
-        if nearest is None:
-            return None
-        found = _PINCODE.findall(nearest.address_line or "")
-        # The last one: Indian addresses end "..., State 360311, India".
-        return found[-1] if found else None
+
+        pincode = found.postal_code if found and found.postal_code else None
+        if pincode is None and nearest is not None and nearest_m <= _PINCODE_RADIUS_M:
+            # The last one: Indian addresses end "..., State 360311, India".
+            pincodes = _PINCODE.findall(nearest.address_line or "")
+            pincode = pincodes[-1] if pincodes else None
+
+        if nearest is not None and nearest_m <= _NAME_RADIUS_M:
+            label = f"{nearest.label}, {nearest.address_line}"
+        else:
+            label = found.address_line if found and found.address_line else None
+        return PlaceAt(pincode=pincode, label=_trim(label) if label else None)
 
     @property
     def place_provider_name(self) -> str | None:
@@ -295,7 +311,12 @@ def _validate_profile(profile: WorkerProfile) -> None:
         raise OnboardingIncomplete(f"Still needed: {', '.join(missing)}.")
 
 
-_SAVED_PLACE_RADIUS_M = 500.0
+# Near enough a saved place for its pincode to be right.
+_PINCODE_RADIUS_M = 500.0
+# Near enough to say the worker is at it - the app's header uses the same.
+_NAME_RADIUS_M = 150.0
+# acute-core's limit on an SOS place label, in code points.
+_MAX_LABEL = 160
 _PINCODE = re.compile(r"(?<!\d)\d{6}(?!\d)")
 
 
@@ -306,4 +327,8 @@ def _distance_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     d_lat = (lat2 - lat1) * rad
     d_lng = (lng2 - lng1) * rad * scale
     return math.hypot(d_lat, d_lng) * 6_371_000
+
+
+def _trim(label: str) -> str:
+    return label[:_MAX_LABEL]
 
