@@ -182,6 +182,7 @@ GEOCODE_RESPONSE = {
                     "types": ["sublocality_level_1", "sublocality", "political"],
                 },
                 {"long_name": "Mumbai", "types": ["locality", "political"]},
+                {"long_name": "400050", "types": ["postal_code"]},
             ],
             "geometry": {"location": {"lat": 19.0605, "lng": 72.8347}},
         },
@@ -237,3 +238,32 @@ class TestReverse:
         await provider.reverse(19.0605, 72.8347)
 
         assert "test-key" not in caplog.text
+
+    async def test_the_postal_code_comes_from_its_own_component(self):
+        handler, _ = responder(GEOCODE_RESPONSE)
+        provider = make_provider(handler)
+
+        result = await provider.reverse(19.0605, 72.8347)
+
+        assert result.postal_code == "400050"
+
+    async def test_a_result_without_a_postal_code_has_none(self):
+        no_pin = {
+            "status": "OK",
+            "results": [
+                {
+                    "types": ["route"],
+                    "formatted_address": "Linking Road, Mumbai",
+                    "address_components": [
+                        {"long_name": "Linking Road", "types": ["route"]}
+                    ],
+                    "geometry": {"location": {"lat": 19.06, "lng": 72.83}},
+                }
+            ],
+        }
+        handler, _ = responder(no_pin)
+        provider = make_provider(handler)
+
+        result = await provider.reverse(19.06, 72.83)
+
+        assert result.postal_code is None

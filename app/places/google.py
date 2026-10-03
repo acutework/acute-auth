@@ -168,6 +168,7 @@ class GooglePlacesProvider(PlaceSearchProvider):
 
         location = best.get("geometry", {}).get("location", {})
         return ReverseResult(
+            postal_code=named("postal_code"),
             title=title,
             subtitle=subtitle,
             address_line=address_line,

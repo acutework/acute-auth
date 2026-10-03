@@ -14,6 +14,7 @@ LINKING_ROAD = ReverseResult(
     address_line="14, Linking Road, Bandra West, Mumbai",
     latitude=19.0605,
     longitude=72.8347,
+    postal_code="400050",
 )
 
 
@@ -59,6 +60,7 @@ def test_a_point_is_answered_with_what_it_is_called(client, provider):
         "address_line": "14, Linking Road, Bandra West, Mumbai",
         "latitude": 19.0605,
         "longitude": 72.8347,
+        "postal_code": "400050",
     }
     assert provider.asked == [(19.0605, 72.8347)]
 

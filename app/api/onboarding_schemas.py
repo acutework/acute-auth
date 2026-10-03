@@ -84,6 +84,7 @@ class ReverseGeocodeOut(BaseModel):
     address_line: str
     latitude: float
     longitude: float
+    postal_code: str | None = None
 
 
 class OnboardingStateOut(BaseModel):

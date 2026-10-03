@@ -44,6 +44,8 @@ class ReverseResult:
     address_line: str
     latitude: float
     longitude: float
+    # India's six-digit PIN, which decides which associations operate here.
+    postal_code: str | None = None
 
 
 class PlaceSearchProvider(ABC):
