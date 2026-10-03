@@ -267,3 +267,28 @@ class TestReverse:
         result = await provider.reverse(19.06, 72.83)
 
         assert result.postal_code is None
+
+    async def test_a_leading_plus_code_is_dropped_from_the_address(self):
+        # Google sometimes opens an address with a grid reference, which
+        # means nothing to a responder reading it.
+        coded = {
+            "status": "OK",
+            "results": [
+                {
+                    "types": ["street_address"],
+                    "formatted_address": "XQGW+J6V, Vardhman Nagar, Gondal, Gujarat 360311, India",
+                    "address_components": [
+                        {"long_name": "Vardhman Nagar", "types": ["sublocality_level_1"]},
+                        {"long_name": "360311", "types": ["postal_code"]},
+                    ],
+                    "geometry": {"location": {"lat": 21.9766, "lng": 70.7955}},
+                }
+            ],
+        }
+        handler, _ = responder(coded)
+        provider = make_provider(handler)
+
+        result = await provider.reverse(21.9766, 70.7955)
+
+        assert result.address_line == "Vardhman Nagar, Gondal, Gujarat 360311, India"
+

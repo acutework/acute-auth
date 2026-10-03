@@ -9,6 +9,7 @@ which is how Google bills a lookup as one session instead of many.
 """
 
 import logging
+import re
 
 import httpx
 
@@ -43,6 +44,10 @@ _TITLE_TYPES = (
     "locality",
 )
 _SUBTITLE_TYPES = ("sublocality_level_1", "locality")
+
+# A grid reference Google sometimes opens an address with ("XQGW+J6V, ...").
+# It means nothing to a responder reading where someone is.
+_PLUS_CODE_PREFIX = re.compile(r"^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3},\s*")
 
 
 class GooglePlacesProvider(PlaceSearchProvider):
@@ -155,7 +160,7 @@ class GooglePlacesProvider(PlaceSearchProvider):
                 None,
             )
 
-        address_line = best.get("formatted_address", "")
+        address_line = _PLUS_CODE_PREFIX.sub("", best.get("formatted_address", ""))
         title = next((n for n in map(named, _TITLE_TYPES) if n), None)
         if title is None:
             title, _, rest = address_line.partition(", ")
