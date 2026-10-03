@@ -53,10 +53,11 @@ async def place_at(
     user_id: Annotated[str, Query(min_length=1, max_length=64)],
     lat: Annotated[float, Query(ge=-90, le=90)],
     lng: Annotated[float, Query(ge=-180, le=180)],
+    accuracy_m: Annotated[float, Query(ge=0, le=100_000)] = 0.0,
     x_internal_key: Annotated[str | None, Header()] = None,
 ) -> dict[str, str | None]:
     """The pincode and a name for where an SOS is. Either may be null."""
     if not settings.internal_api_key or x_internal_key != settings.internal_api_key:
         raise InternalAccessDenied()
-    place = await onboarding.place_at(user_id, lat, lng)
+    place = await onboarding.place_at(user_id, lat, lng, accuracy_m=accuracy_m)
     return {"pincode": place.pincode, "label": place.label}

@@ -41,6 +41,7 @@ from app.places.base import (
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass(frozen=True)
 class PlaceAt:
     """Where an SOS is, as acute-core needs it. Either part may be unknown."""
@@ -219,15 +220,21 @@ class OnboardingService:
         return result
 
     async def place_at(
-        self, user_id: str, latitude: float, longitude: float
+        self,
+        user_id: str,
+        latitude: float,
+        longitude: float,
+        *,
+        accuracy_m: float = 0.0,
     ) -> PlaceAt:
         """Where an SOS is: its pincode, for the sender's associations, and a
         name for responders, for an SOS that came without one.
 
         Google first. When it cannot answer - down, refused, or no postal code
         - the pincode in the address of the worker's own saved place within
-        500 m. The name is that saved place when within 150 m, as the app's
-        header would say, else Google's address. Nothing is never an error.
+        500 m. The name is that saved place when within 150 m and the fix is
+        good to 150 m, else Google's address: a rough fix beside a saved place
+        does not put the worker in it. Nothing is never an error.
         """
         found: ReverseResult | None = None
         if self._places is not None:
@@ -250,7 +257,11 @@ class OnboardingService:
             pincodes = _PINCODE.findall(nearest.address_line or "")
             pincode = pincodes[-1] if pincodes else None
 
-        if nearest is not None and nearest_m <= _NAME_RADIUS_M:
+        if (
+            nearest is not None
+            and nearest_m <= _NAME_RADIUS_M
+            and accuracy_m <= _NAME_RADIUS_M
+        ):
             label = f"{nearest.label}, {nearest.address_line}"
         else:
             label = found.address_line if found and found.address_line else None
@@ -331,4 +342,3 @@ def _distance_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 
 def _trim(label: str) -> str:
     return label[:_MAX_LABEL]
-

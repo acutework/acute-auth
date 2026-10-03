@@ -121,7 +121,12 @@ class TestEndpoint:
 
         response = client.get(
             "/internal/places/at",
-            params={"user_id": "u1", "lat": GONDAL[0], "lng": GONDAL[1]},
+            params={
+                "user_id": "u1",
+                "lat": GONDAL[0],
+                "lng": GONDAL[1],
+                "accuracy_m": 25,
+            },
             headers={"X-Internal-Key": KEY},
         )
 
@@ -182,6 +187,24 @@ class TestName:
 
         assert place.label is None
         assert place.pincode == "360311"
+
+    async def test_a_rough_fix_is_not_named_after_a_saved_place(self):
+        # A first fix from cell towers, good to 500 m, that lands beside
+        # "Ram Gondaa" does not mean the worker is in it. Saying so could send
+        # responders to the wrong building.
+        service = await service_with(_Provider(street("360311")), ram_gondaa())
+
+        place = await service.place_at("u1", *GONDAL, accuracy_m=500)
+
+        assert place.label == "Vardhman Nagar, Gondal"
+        assert place.pincode == "360311"
+
+    async def test_a_precise_fix_is_named_after_the_saved_place(self):
+        service = await service_with(_Provider(street("360311")), ram_gondaa())
+
+        place = await service.place_at("u1", *GONDAL, accuracy_m=20)
+
+        assert place.label.startswith("Ram Gondaa, ")
 
     async def test_a_long_name_is_cut_to_what_an_sos_accepts(self):
         long = ram_gondaa()
