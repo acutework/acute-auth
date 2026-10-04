@@ -15,8 +15,10 @@ from dataclasses import dataclass, field, replace
 
 from app.core.errors import (
     AddressNotFound,
+    InvalidPlace,
     InvalidProfile,
     OnboardingIncomplete,
+    OnboardingRequired,
     PlaceNotFound,
     ProfileRequired,
 )
@@ -26,6 +28,7 @@ from app.onboarding.models import (
     MAX_TAGS,
     MembershipStatus,
     OnboardingState,
+    PlaceVisibility,
     OnboardingStep,
     SavedPlace,
     WorkerProfile,
@@ -159,6 +162,10 @@ class OnboardingService:
             )
         )
 
+    async def require_complete(self, user_id: str) -> None:
+        if not (await self._repo.get_state(user_id)).is_complete:
+            raise OnboardingRequired()
+
     # ------------------------------------------------------------------ places
 
     async def list_places(self, user_id: str) -> list[SavedPlace]:
@@ -173,6 +180,12 @@ class OnboardingService:
             raise OnboardingIncomplete("A place needs a label.")
         if not (place.address_line or "").strip():
             raise OnboardingIncomplete("A place needs an address.")
+        # Location search matches on coordinates, so a practice location
+        # without them would be public yet never found.
+        if place.visibility == PlaceVisibility.PRACTICE and (
+            place.latitude is None or place.longitude is None
+        ):
+            raise InvalidPlace()
 
         if not place.id:
             place.id = str(uuid.uuid4())

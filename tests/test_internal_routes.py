@@ -6,7 +6,7 @@ boolean, behind a shared key, disclosing nothing else about the user table.
 """
 
 from tests.conftest import EXISTING_MOBILE, make_settings
-from tests.conftest_onboarding import sign_in
+from tests.conftest_onboarding import DOCTOR, auth, sign_in
 
 KEY = "internal-test-key"
 
@@ -17,6 +17,7 @@ def make_client(**overrides):
     from app.deps import (
         build_auth_service,
         build_catalog_repository,
+        build_onboarding_repository,
         build_onboarding_service,
         get_auth_service,
         get_catalog_repository,
@@ -26,11 +27,11 @@ def make_client(**overrides):
     from app.main import app
 
     settings = make_settings(**{'internal_api_key': KEY, **overrides})
-    auth = build_auth_service(settings)
+    profiles = build_onboarding_repository(settings)
+    auth = build_auth_service(settings, profiles=profiles)
+    onboarding = build_onboarding_service(settings, repository=profiles)
     app.dependency_overrides[get_auth_service] = lambda: auth
-    app.dependency_overrides[get_onboarding_service] = (
-        lambda: build_onboarding_service(settings)
-    )
+    app.dependency_overrides[get_onboarding_service] = lambda: onboarding
     app.dependency_overrides[get_catalog_repository] = (
         lambda: build_catalog_repository(settings)
     )
@@ -179,6 +180,19 @@ class TestContact:
         assert response.status_code == 200
         assert response.json()["mobile"] == EXISTING_MOBILE
         assert set(response.json()) == {"mobile", "name"}
+
+    def test_the_contact_is_named_as_the_worker_named_their_profile(self):
+        client, _ = make_client()
+        token = sign_in(client)
+        me = client.get("/auth/me", headers=auth(token)).json()
+        user_id = me["id"]
+        before = client.get(f"/internal/users/{user_id}/contact", headers={"X-Internal-Key": KEY}).json()
+        client.put("/onboarding/profile", json=DOCTOR, headers=auth(token)).raise_for_status()
+
+        after = client.get(f"/internal/users/{user_id}/contact", headers={"X-Internal-Key": KEY}).json()
+
+        assert before["name"] == me["name"]
+        assert after == {"mobile": EXISTING_MOBILE, "name": DOCTOR["display_name"]}
 
     def test_no_key_or_a_wrong_key_is_refused(self):
         client, _ = make_client()

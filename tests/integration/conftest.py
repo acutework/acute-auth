@@ -5,6 +5,8 @@ instant for everyone. Bring them up with `docker compose up -d` and run
 `pytest -m integration`.
 """
 
+import os
+
 import pytest
 import pytest_asyncio
 from redis.asyncio import Redis
@@ -15,8 +17,16 @@ from app.db.redis import create_redis
 from app.db.session import create_engine, create_session_factory
 from app.users.postgres import PostgresUserRepository
 
-TEST_DATABASE_URL = "postgresql+asyncpg://acute_auth:acute_auth@localhost:5433/acute_auth"
-TEST_REDIS_URL = "redis://localhost:6380/15"  # db 15: never the app's own
+# Overridable so a run can point at a throwaway server instead of the dev
+# database, whose tables these fixtures truncate.
+TEST_DATABASE_URL = os.environ.get(
+    "ACUTE_AUTH_TEST_DATABASE_URL",
+    "postgresql+asyncpg://acute_auth:acute_auth@localhost:5433/acute_auth",
+)
+TEST_REDIS_URL = os.environ.get(
+    "ACUTE_AUTH_TEST_REDIS_URL",
+    "redis://localhost:6380/15",  # db 15: never the app's own
+)
 
 
 @pytest.fixture(scope="session")

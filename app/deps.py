@@ -263,6 +263,15 @@ async def current_user(auth: AuthServiceDep, token: BearerTokenDep) -> User:
 CurrentUserDep = Annotated[User, Depends(current_user)]
 
 
+async def onboarded_user(user: CurrentUserDep, onboarding: OnboardingServiceDep) -> User:
+    await onboarding.require_complete(user.id)
+    return user
+
+
+# The directory is for workers who are themselves listed in it.
+OnboardedUserDep = Annotated[User, Depends(onboarded_user)]
+
+
 async def aclose() -> None:
     """Release whatever was actually built: HTTP clients, Redis, DB pools."""
     for key in ("auth_service", "onboarding_service"):

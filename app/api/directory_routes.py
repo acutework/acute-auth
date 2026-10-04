@@ -4,7 +4,7 @@ their number, and nothing private is answered."""
 from fastapi import APIRouter, Query
 
 from app.api.directory_schemas import PersonOut, PracticeLocationOut, SearchItemOut, SearchPageOut
-from app.deps import CurrentUserDep, DirectoryServiceDep
+from app.deps import DirectoryServiceDep, OnboardedUserDep
 
 router = APIRouter(prefix="/directory", tags=["directory"])
 
@@ -17,7 +17,7 @@ def _km(value: float | None) -> float | None:
 
 @router.get("/search", response_model=SearchPageOut)
 async def search(
-    user: CurrentUserDep,
+    user: OnboardedUserDep,
     service: DirectoryServiceDep,
     q: str | None = Query(default=None, max_length=200),
     role: str = Query(default="doctor", pattern=ROLES),
@@ -53,7 +53,7 @@ async def search(
 @router.get("/people/{user_id}", response_model=PersonOut)
 async def person(
     user_id: str,
-    user: CurrentUserDep,
+    user: OnboardedUserDep,
     service: DirectoryServiceDep,
     lat: float | None = None,
     lng: float | None = None,

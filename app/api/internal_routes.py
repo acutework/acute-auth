@@ -75,7 +75,7 @@ async def user_contact(
     in the directory without the app ever holding their number."""
     if not settings.internal_api_key or x_internal_key != settings.internal_api_key:
         raise InternalAccessDenied()
-    user = await auth.contact(user_id)
-    if user is None:
+    contact = await auth.contact(user_id)
+    if contact is None:
         raise UserNotFound()
-    return {"mobile": user.mobile, "name": user.name}
+    return {"mobile": contact.mobile, "name": contact.name}

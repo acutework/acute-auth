@@ -24,6 +24,12 @@ from app.users.models import User
 from app.users.repository import UserRepository
 
 
+@dataclass(frozen=True)
+class Contact:
+    mobile: str
+    name: str
+
+
 @dataclass
 class TokenPair:
     access_token: str
@@ -138,9 +144,18 @@ class AuthService:
         """
         return await self._users.get_by_mobile(normalise_mobile(mobile)) is not None
 
-    async def contact(self, user_id: str) -> User | None:
-        """For acute-core's add-to-circle; never exposed to apps."""
-        return await self._users.get_by_id(user_id)
+    async def contact(self, user_id: str) -> Contact | None:
+        """For acute-core's add-to-circle; never exposed to apps.
+
+        The name is the one the worker gave their profile, as the directory
+        showed it to whoever is adding them, falling back to the account name.
+        """
+        user = await self._users.get_by_id(user_id)
+        if user is None:
+            return None
+        profile = await self._profiles.get_profile(user.id) if self._profiles else None
+        name = (profile.display_name or "").strip() if profile else ""
+        return Contact(mobile=user.mobile, name=name or user.name)
 
     async def current_user(self, access_token: str) -> User:
         claims = self._tokens.decode(access_token, expected_type=TokenType.ACCESS)

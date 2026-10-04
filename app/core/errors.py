@@ -167,3 +167,15 @@ class InvalidCursor(AuthError):
     status_code = 422
     code = "invalid_cursor"
     message = "That page marker is not valid. Start again from the top."
+
+
+class InvalidPlace(AuthError):
+    status_code = 422
+    code = "invalid_place"
+    message = "A practice location needs its map position. Add the address from search."
+
+
+class OnboardingRequired(AuthError):
+    status_code = 403
+    code = "onboarding_required"
+    message = "Finish setting up your profile to search the directory."

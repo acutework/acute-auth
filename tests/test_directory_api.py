@@ -6,7 +6,7 @@ import uuid
 
 import pytest
 
-from app.onboarding.models import PlaceVisibility, WorkerRole
+from app.onboarding.models import OnboardingState, OnboardingStep, PlaceVisibility, WorkerRole
 from tests.conftest_onboarding import auth, sign_in
 from tests.directory_helpers import seed_person
 
@@ -14,8 +14,14 @@ HERE = (17.43, 78.41)
 
 
 @pytest.fixture
-def token(client) -> str:
-    return sign_in(client)
+def token(client, profiles) -> str:
+    """A caller who has finished onboarding, as the directory requires."""
+    signed_in = sign_in(client)
+    me = client.get("/auth/me", headers=auth(signed_in)).json()["id"]
+    asyncio.run(
+        profiles.save_state(OnboardingState(user_id=me, current_step=OnboardingStep.DONE, is_complete=True))
+    )
+    return signed_in
 
 
 @pytest.fixture
@@ -36,6 +42,15 @@ def search(client, token, query: str = "") -> dict:
 
 def test_search_needs_a_token(client):
     assert client.get("/directory/search").status_code == 401
+
+
+def test_a_caller_who_has_not_finished_onboarding_can_neither_search_nor_read_a_profile(client, seed):
+    unfinished = sign_in(client)
+    someone = seed("Dr Rao")
+
+    for path in ("/directory/search", f"/directory/people/{someone}"):
+        response = client.get(path, headers=auth(unfinished))
+        assert response.status_code == 403 and response.json()["code"] == "onboarding_required"
 
 
 def test_doctors_are_listed_by_default_with_what_a_row_needs(client, token, seed):

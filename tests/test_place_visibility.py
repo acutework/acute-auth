@@ -51,3 +51,18 @@ def test_nobody_can_update_someone_elses_place(client, token):
     assert response.json()["code"] == "place_not_found"
     mine = client.get("/places", headers=auth(token)).json()[0]
     assert (mine["label"], mine["visibility"]) == ("Apollo Hospital", "private")
+
+
+@pytest.mark.parametrize("missing", ["latitude", "longitude"])
+def test_a_place_without_coordinates_cannot_become_a_practice_location(client, token, missing):
+    typed = {k: v for k, v in WARD.items() if k != missing}
+    place = client.post("/places", json=typed, headers=auth(token)).json()
+
+    made_public = client.put(
+        f"/places/{place['id']}", json={**typed, "visibility": "practice"}, headers=auth(token)
+    )
+    created_public = client.post("/places", json={**typed, "visibility": "practice"}, headers=auth(token))
+
+    assert made_public.status_code == 422 and made_public.json()["code"] == "invalid_place"
+    assert created_public.status_code == 422 and created_public.json()["code"] == "invalid_place"
+    assert client.get("/places", headers=auth(token)).json()[0]["visibility"] == "private"
