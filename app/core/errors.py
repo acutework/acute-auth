@@ -131,6 +131,12 @@ class ProfileRequired(AuthError):
     message = "Save your profile before this step."
 
 
+class InvalidProfile(AuthError):
+    status_code = 422
+    code = "invalid_profile"
+    message = "Those profile details cannot be saved."
+
+
 class PlaceNotFound(AuthError):
     status_code = 404
     code = "place_not_found"

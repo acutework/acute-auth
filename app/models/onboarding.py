@@ -9,8 +9,10 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,6 +43,8 @@ class WorkerProfileRow(Base):
     certification_level: Mapped[str | None] = mapped_column(String(64))
     paramedic_licence_no: Mapped[str | None] = mapped_column(String(64))
     role_description: Mapped[str | None] = mapped_column(String(255))
+    about: Mapped[str | None] = mapped_column(Text)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list, server_default=text("'[]'"))
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -101,6 +105,7 @@ class SavedPlaceRow(Base):
     # Which lookup service produced this, so a later provider change is legible.
     provider: Mapped[str | None] = mapped_column(String(32))
     provider_place_id: Mapped[str | None] = mapped_column(String(255))
+    visibility: Mapped[str] = mapped_column(String(16), default="private", server_default="private")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

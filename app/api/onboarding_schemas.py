@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from app.onboarding.models import (
     MembershipStatus,
     OnboardingStep,
+    PlaceVisibility,
     WorkerRole,
     WorkplaceMode,
 )
@@ -27,6 +28,9 @@ class ProfileIn(BaseModel):
     certification_level: str | None = None
     paramedic_licence_no: str | None = None
     role_description: str | None = None
+    # Payload caps only; the service's limits answer with invalid_profile.
+    about: str | None = Field(default=None, max_length=2000)
+    tags: list[str] = Field(default_factory=list, max_length=50)
 
 
 class ProfileOut(ProfileIn):
@@ -56,6 +60,7 @@ class PlaceIn(BaseModel):
     # Set when the address came from the lookup provider rather than typing.
     provider: str | None = None
     provider_place_id: str | None = None
+    visibility: PlaceVisibility = PlaceVisibility.PRIVATE
 
 
 class PlaceOut(PlaceIn):

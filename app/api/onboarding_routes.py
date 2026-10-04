@@ -64,6 +64,8 @@ def _profile_out(profile: WorkerProfile | None) -> ProfileOut | None:
         certification_level=profile.certification_level,
         paramedic_licence_no=profile.paramedic_licence_no,
         role_description=profile.role_description,
+        about=profile.about,
+        tags=profile.tags,
     )
 
 
@@ -90,6 +92,7 @@ def _place_out(place: SavedPlace) -> PlaceOut:
         is_default=place.is_default,
         provider=place.provider,
         provider_place_id=place.provider_place_id,
+        visibility=place.visibility,
     )
 
 

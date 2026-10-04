@@ -16,6 +16,7 @@ from app.onboarding.models import (
     MembershipStatus,
     OnboardingState,
     OnboardingStep,
+    PlaceVisibility,
     SavedPlace,
     WorkerProfile,
     WorkerRole,
@@ -64,6 +65,8 @@ class PostgresOnboardingRepository(OnboardingRepository):
             row.certification_level = profile.certification_level
             row.paramedic_licence_no = profile.paramedic_licence_no
             row.role_description = profile.role_description
+            row.about = profile.about
+            row.tags = list(profile.tags)
             await session.commit()
             await session.refresh(row)
             return _profile_to_domain(row)
@@ -129,6 +132,7 @@ class PostgresOnboardingRepository(OnboardingRepository):
             row.is_default = place.is_default
             row.provider = place.provider
             row.provider_place_id = place.provider_place_id
+            row.visibility = place.visibility.value
             await session.commit()
             await session.refresh(row)
             return _place_to_domain(row)
@@ -210,6 +214,8 @@ def _profile_to_domain(row: WorkerProfileRow | None) -> WorkerProfile | None:
         certification_level=row.certification_level,
         paramedic_licence_no=row.paramedic_licence_no,
         role_description=row.role_description,
+        about=row.about,
+        tags=list(row.tags or []),
     )
 
 
@@ -240,4 +246,5 @@ def _place_to_domain(row: SavedPlaceRow) -> SavedPlace:
         is_default=row.is_default,
         provider=row.provider,
         provider_place_id=row.provider_place_id,
+        visibility=PlaceVisibility(row.visibility or "private"),
     )

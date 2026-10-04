@@ -18,6 +18,18 @@ class WorkerRole(StrEnum):
     OTHER = "other"
 
 
+class PlaceVisibility(StrEnum):
+    # SOS only. The default, because some saved places are homes.
+    PRIVATE = "private"
+    # On the profile and found by location search.
+    PRACTICE = "practice"
+
+
+MAX_ABOUT = 500
+MAX_TAGS = 10
+MAX_TAG_LENGTH = 30
+
+
 class WorkplaceMode(StrEnum):
     JOIN_ORGANISATION = "join_organisation"
     INDIVIDUAL = "individual"
@@ -73,6 +85,10 @@ class WorkerProfile:
     # Other staff
     role_description: str | None = None
 
+    # Read and searched by other workers, so kept short and free of contact details by convention.
+    about: str | None = None
+    tags: list[str] = field(default_factory=list)
+
 
 @dataclass
 class WorkplaceMembership:
@@ -104,6 +120,7 @@ class SavedPlace:
     is_default: bool = False
     provider: str | None = None
     provider_place_id: str | None = None
+    visibility: PlaceVisibility = PlaceVisibility.PRIVATE
 
 
 @dataclass

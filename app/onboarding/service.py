@@ -11,15 +11,19 @@ import logging
 import math
 import re
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from app.core.errors import (
     AddressNotFound,
+    InvalidProfile,
     OnboardingIncomplete,
     PlaceNotFound,
     ProfileRequired,
 )
 from app.onboarding.models import (
+    MAX_ABOUT,
+    MAX_TAG_LENGTH,
+    MAX_TAGS,
     MembershipStatus,
     OnboardingState,
     OnboardingStep,
@@ -93,6 +97,7 @@ class OnboardingService:
         `advance=False` is used when editing an already-onboarded profile, so
         saving a detail does not rewind or re-drive the onboarding flow.
         """
+        profile = _tidy_extras(profile)
         _validate_profile(profile)
         saved = await self._repo.save_profile(profile)
         if advance:
@@ -160,6 +165,10 @@ class OnboardingService:
         return await self._repo.list_places(user_id)
 
     async def save_place(self, place: SavedPlace) -> SavedPlace:
+        # An update must be of the caller's own place: with visibility, a stray
+        # id could otherwise make another worker's home public.
+        if place.id and await self._repo.get_place(place.user_id, place.id) is None:
+            raise PlaceNotFound()
         if not (place.label or "").strip():
             raise OnboardingIncomplete("A place needs a label.")
         if not (place.address_line or "").strip():
@@ -287,6 +296,25 @@ class OnboardingService:
             state.current_step = step
             return await self._repo.save_state(state)
         return state
+
+
+def _tidy_extras(profile: WorkerProfile) -> WorkerProfile:
+    about = (profile.about or "").strip() or None
+    if about is not None and len(about) > MAX_ABOUT:
+        raise InvalidProfile(f"About can be up to {MAX_ABOUT} characters.")
+    tags: list[str] = []
+    seen: set[str] = set()
+    for raw in profile.tags:
+        tag = raw.strip()
+        if not tag or tag.casefold() in seen:
+            continue
+        if len(tag) > MAX_TAG_LENGTH:
+            raise InvalidProfile(f"Each tag can be up to {MAX_TAG_LENGTH} characters.")
+        seen.add(tag.casefold())
+        tags.append(tag)
+    if len(tags) > MAX_TAGS:
+        raise InvalidProfile(f"Choose up to {MAX_TAGS} tags.")
+    return replace(profile, about=about, tags=tags)
 
 
 def _validate_profile(profile: WorkerProfile) -> None:
