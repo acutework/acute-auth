@@ -27,6 +27,7 @@ async def seed_person(
     complete: bool = True,
     organisation: str | None = None,
     about: str | None = None,
+    membership_status: MembershipStatus = MembershipStatus.APPROVED,
 ) -> None:
     await onboarding.save_profile(
         WorkerProfile(
@@ -53,7 +54,7 @@ async def seed_person(
             WorkplaceMembership(
                 user_id=user_id,
                 mode=WorkplaceMode.JOIN_ORGANISATION,
-                status=MembershipStatus.APPROVED,
+                status=membership_status,
                 organisation_name=organisation,
                 department="Emergency Department",
             )

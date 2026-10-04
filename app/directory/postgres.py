@@ -5,7 +5,7 @@ element so any script compares as decoded text."""
 import math
 import uuid
 
-from sqlalchemy import exists, func, literal, or_, select
+from sqlalchemy import JSON, case, cast, exists, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.directory.matching import EARTH_RADIUS_KM
@@ -32,7 +32,11 @@ def _like(text: str) -> str:
 
 def _any_element(column, condition):
     """True when some element of a JSON array column satisfies `condition(value)`."""
-    elements = func.json_array_elements_text(column).table_valued("value")
+    # A JSON null or scalar would make json_array_elements_text raise for the
+    # whole query. The guard sits inside a CASE because Postgres does not promise
+    # to evaluate an AND left to right; such a row becomes empty and never matches.
+    array = case((func.json_typeof(column) == "array", column), else_=cast(literal("[]"), JSON))
+    elements = func.json_array_elements_text(array).table_valued("value")
     return exists(select(literal(1)).select_from(elements).where(condition(elements.c.value)))
 
 
@@ -44,6 +48,12 @@ def _distance(point: GeoPoint):
         func.sin(func.radians(place.longitude - point.lng) / 2), 2
     )
     return 2 * EARTH_RADIUS_KM * func.asin(func.least(1.0, func.sqrt(h)))
+
+
+def _by_name(profile):
+    # Code-point order, as Python sorts the in-memory directory; the database's
+    # locale collation would put names in a different order.
+    return func.lower(profile.display_name).collate("C")
 
 
 class PostgresDirectoryRepository(DirectoryRepository):
@@ -85,10 +95,10 @@ class PostgresDirectoryRepository(DirectoryRepository):
                 .scalar_subquery()
             )
             statement = statement.where(nearest <= (query.radius_km or 0) + 1e-6).order_by(
-                nearest, func.lower(profile.display_name), profile.user_id
+                nearest, _by_name(profile), profile.user_id
             )
         else:
-            statement = statement.order_by(func.lower(profile.display_name), profile.user_id)
+            statement = statement.order_by(_by_name(profile), profile.user_id)
         statement = statement.offset(offset).limit(limit)
         async with self._session_factory() as session:
             ids = list(await session.scalars(statement))
@@ -120,6 +130,9 @@ class PostgresDirectoryRepository(DirectoryRepository):
             select(SavedPlaceRow).where(
                 SavedPlaceRow.user_id.in_(ids), SavedPlaceRow.visibility == "practice"
             )
+            # A fixed order, so the profile lists places the same way each time
+            # and two equally near places always name the same one.
+            .order_by(SavedPlaceRow.created_at, SavedPlaceRow.id)
         ):
             places.setdefault(str(row.user_id), []).append(_place_to_domain(row))
         people = {}

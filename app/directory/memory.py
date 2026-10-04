@@ -21,7 +21,12 @@ class InMemoryDirectoryRepository(DirectoryRepository):
             state = store._states.get(user_id)
             if state is None or not state.is_complete:
                 continue
-            places = [p for p in store._places.values() if p.user_id == user_id]
+            # The domain has no creation time, so label then id stands in for
+            # Postgres's creation order: any fixed order keeps ties stable.
+            places = sorted(
+                (p for p in store._places.values() if p.user_id == user_id),
+                key=lambda p: (p.label, p.id),
+            )
             people.append(person_from(profile, store._memberships.get(user_id), places))
         return people
 

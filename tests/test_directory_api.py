@@ -1,6 +1,7 @@
 """The directory over HTTP."""
 
 import asyncio
+import base64
 import uuid
 
 import pytest
@@ -72,6 +73,18 @@ def test_an_unknown_role_and_a_mangled_cursor_are_refused(client, token):
     assert client.get("/directory/search?role=surgeon", headers=auth(token)).status_code == 422
     response = client.get("/directory/search?cursor=zzz", headers=auth(token))
     assert response.json()["code"] == "invalid_cursor"
+
+
+def cursor_for(offset: int) -> str:
+    return base64.urlsafe_b64encode(str(offset).encode()).decode().rstrip("=")
+
+
+def test_a_cursor_past_ten_thousand_rows_is_refused_rather_than_sent_to_the_database(client, token):
+    assert search(client, token, f"?cursor={cursor_for(10_000)}")["items"] == []
+
+    for offset in (10_001, 10**30):
+        response = client.get(f"/directory/search?cursor={cursor_for(offset)}", headers=auth(token))
+        assert response.status_code == 422 and response.json()["code"] == "invalid_cursor"
 
 
 def test_pages_end_with_no_cursor(client, token, seed):

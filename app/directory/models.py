@@ -7,11 +7,13 @@ number, or a private place, so none of those can reach a response by accident.
 from dataclasses import dataclass, field
 
 from app.onboarding.models import (
+    MembershipStatus,
     PlaceVisibility,
     SavedPlace,
     WorkerProfile,
     WorkerRole,
     WorkplaceMembership,
+    WorkplaceMode,
 )
 
 MIN_RADIUS_KM = 1
@@ -65,6 +67,12 @@ def person_from(
     membership: WorkplaceMembership | None,
     places: list[SavedPlace],
 ) -> Person:
+    # A request to join is only the worker's claim until the organisation approves
+    # it; an individual's workplace is their own declaration and needs no one's.
+    if membership and not (
+        membership.status == MembershipStatus.APPROVED or membership.mode == WorkplaceMode.INDIVIDUAL
+    ):
+        membership = None
     return Person(
         user_id=profile.user_id,
         name=profile.display_name,

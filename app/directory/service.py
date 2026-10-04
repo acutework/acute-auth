@@ -18,6 +18,10 @@ from app.directory.models import (
 from app.directory.repository import DirectoryRepository
 from app.onboarding.models import WorkerRole
 
+# Nobody pages this far by hand, and a forged offset beyond Postgres's bigint
+# would otherwise fail in the database rather than here.
+MAX_OFFSET = 10_000
+
 
 @dataclass(frozen=True)
 class Hit:
@@ -60,7 +64,7 @@ def _decode(cursor: str | None) -> int:
         offset = int(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)).decode())
     except (binascii.Error, UnicodeDecodeError, ValueError) as exc:
         raise InvalidCursor() from exc
-    if offset < 0:
+    if not 0 <= offset <= MAX_OFFSET:
         raise InvalidCursor()
     return offset
 

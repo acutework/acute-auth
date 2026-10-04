@@ -2,7 +2,7 @@
 `seed(name, **kwargs)` creates a worker (see seed_person) and returns their user id."""
 
 from app.directory.models import GeoPoint, SearchQuery
-from app.onboarding.models import PlaceVisibility, WorkerRole
+from app.onboarding.models import MembershipStatus, PlaceVisibility, WorkerRole
 
 PRIVATE, PRACTICE = PlaceVisibility.PRIVATE, PlaceVisibility.PRACTICE
 HERE = GeoPoint(17.4300, 78.4100)
@@ -101,6 +101,19 @@ class DirectoryContract:
         assert person.name == "Dr Rao" and person.about == "Emergency physician."
         assert person.tags == ("trauma",) and person.organisation == "Apollo Hospital"
         assert [p.label for p in person.practice_locations] == ["Apollo"]
+
+    async def test_an_organisation_shows_only_once_the_organisation_has_approved_the_worker(
+        self, directory, seed
+    ):
+        pending = await seed("Dr Hopeful", organisation="Apollo Hospital", membership_status=MembershipStatus.PENDING)
+        rejected = await seed("Dr Refused", organisation="Apollo Hospital", membership_status=MembershipStatus.REJECTED)
+        approved = await seed("Dr Staff", organisation="Apollo Hospital")
+
+        for user in (pending, rejected):
+            person = await directory.get_person(user)
+            assert person.organisation is None and person.department is None
+        assert (await directory.get_person(approved)).organisation == "Apollo Hospital"
+        assert [p.organisation for p in await everyone(directory)] == [None, None, "Apollo Hospital"]
 
     async def test_an_unknown_person_is_none(self, directory):
         assert await directory.get_person("00000000-0000-0000-0000-000000000000") is None
