@@ -163,3 +163,41 @@ class TestVisibility:
         assert not any(
             path.startswith("/internal") for path in app.openapi()["paths"]
         )
+
+
+class TestContact:
+    def user_id(self, client) -> str:
+        token = sign_in(client)
+        return client.get("/auth/me", headers={"Authorization": f"Bearer {token}"}).json()["id"]
+
+    def test_the_contact_is_answered_with_the_key(self):
+        client, _ = make_client()
+        user_id = self.user_id(client)
+
+        response = client.get(f"/internal/users/{user_id}/contact", headers={"X-Internal-Key": KEY})
+
+        assert response.status_code == 200
+        assert response.json()["mobile"] == EXISTING_MOBILE
+        assert set(response.json()) == {"mobile", "name"}
+
+    def test_no_key_or_a_wrong_key_is_refused(self):
+        client, _ = make_client()
+        user_id = self.user_id(client)
+
+        for headers in ({}, {"X-Internal-Key": "wrong"}):
+            response = client.get(f"/internal/users/{user_id}/contact", headers=headers)
+            assert response.status_code == 401
+
+    def test_a_blank_configured_key_fails_closed(self):
+        client, _ = make_client(internal_api_key="")
+
+        response = client.get("/internal/users/anything/contact", headers={"X-Internal-Key": ""})
+
+        assert response.status_code == 401
+
+    def test_an_unknown_user_is_not_found(self):
+        client, _ = make_client()
+
+        for user_id in ("00000000-0000-0000-0000-000000000000", "not-a-uuid"):
+            response = client.get(f"/internal/users/{user_id}/contact", headers={"X-Internal-Key": KEY})
+            assert response.status_code == 404

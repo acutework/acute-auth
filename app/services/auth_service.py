@@ -138,6 +138,10 @@ class AuthService:
         """
         return await self._users.get_by_mobile(normalise_mobile(mobile)) is not None
 
+    async def contact(self, user_id: str) -> User | None:
+        """For acute-core's add-to-circle; never exposed to apps."""
+        return await self._users.get_by_id(user_id)
+
     async def current_user(self, access_token: str) -> User:
         claims = self._tokens.decode(access_token, expected_type=TokenType.ACCESS)
         user = await self._users.get_by_id(claims["sub"])

@@ -1,11 +1,12 @@
 """Endpoints for other Acutework services, not for apps.
 
-acute-core asks two narrow questions. Whether a mobile number has an account,
-so an invitation can go by push rather than an SMS - a bare boolean. And where
-an SOS is - its pincode, for the sender's associations, and a name for
-responders when the SOS came without one. Never a user id, the user's name,
-their list of places or anything else that would let this become a back door
-into the user table.
+acute-core asks narrow questions. Whether a mobile number has an account,
+so an invitation can go by push rather than an SMS - a bare boolean. Where an
+SOS is - its pincode, for the sender's associations, and a name for responders
+when the SOS came without one. And, for add-to-circle, one user's number and
+name by id. That last endpoint discloses one user's contact, only to a holder
+of the internal key; nothing here lists or searches users, and nothing here
+returns a user's places or anything else from the user table.
 
 Guarded by a shared key rather than a user token, because the caller is a
 service and no user is involved. A blank key disables the endpoint entirely,
@@ -16,7 +17,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Header, Query
 
-from app.core.errors import AuthError
+from app.core.errors import AuthError, UserNotFound
 from app.deps import AuthServiceDep, OnboardingServiceDep, SettingsDep
 
 router = APIRouter(prefix="/internal", tags=["internal"], include_in_schema=False)
@@ -61,3 +62,20 @@ async def place_at(
         raise InternalAccessDenied()
     place = await onboarding.place_at(user_id, lat, lng, accuracy_m=accuracy_m)
     return {"pincode": place.pincode, "label": place.label}
+
+
+@router.get("/users/{user_id}/contact")
+async def user_contact(
+    user_id: str,
+    settings: SettingsDep,
+    auth: AuthServiceDep,
+    x_internal_key: Annotated[str | None, Header()] = None,
+) -> dict[str, str]:
+    """The number and name behind a user id, so acute-core can invite someone found
+    in the directory without the app ever holding their number."""
+    if not settings.internal_api_key or x_internal_key != settings.internal_api_key:
+        raise InternalAccessDenied()
+    user = await auth.contact(user_id)
+    if user is None:
+        raise UserNotFound()
+    return {"mobile": user.mobile, "name": user.name}
