@@ -16,6 +16,7 @@ from app.core.errors import (
 )
 from app.core.mobile import normalise_mobile
 from app.core.security import TokenService, TokenType
+from app.onboarding.repository import OnboardingRepository
 from app.otp.base import OtpChallenge, OtpProvider, OtpResender
 from app.ratelimit.limiter import RateLimit, RateLimiter
 from app.tokens.denylist import TokenDenylist
@@ -51,6 +52,7 @@ class AuthService:
         denylist: TokenDenylist,
         send_limit: RateLimit,
         verify_limit: RateLimit,
+        profiles: OnboardingRepository | None = None,
     ):
         self._otp = otp_provider
         self._users = users
@@ -59,6 +61,7 @@ class AuthService:
         self._denylist = denylist
         self._send_limit = send_limit
         self._verify_limit = verify_limit
+        self._profiles = profiles
 
     async def request_otp(self, mobile: str) -> OtpChallenge:
         mobile = normalise_mobile(mobile)
@@ -93,7 +96,7 @@ class AuthService:
                 registration_token=self._tokens.create_registration_token(mobile=mobile),
             )
         return VerificationResult(
-            is_new_user=False, user=user, tokens=self._issue_tokens(user)
+            is_new_user=False, user=user, tokens=await self._issue_tokens(user)
         )
 
     async def register(
@@ -107,7 +110,7 @@ class AuthService:
 
         # The repository raises UserAlreadyExists too, if two registrations race.
         user = await self._users.create(mobile=mobile, name=name, email=email)
-        return user, self._issue_tokens(user)
+        return user, await self._issue_tokens(user)
 
     async def refresh(self, refresh_token: str) -> TokenPair:
         claims = await self._decode_live(refresh_token, TokenType.REFRESH)
@@ -119,7 +122,7 @@ class AuthService:
 
         # The old refresh token is spent, so a stolen copy cannot be reused.
         await self._revoke(claims)
-        return self._issue_tokens(user)
+        return await self._issue_tokens(user)
 
     async def sign_out(self, refresh_token: str) -> None:
         """Revoke a refresh token. Its access token dies on its own within minutes."""
@@ -161,13 +164,16 @@ class AuthService:
             claims.get("jti", ""), TokenService.seconds_until_expiry(claims)
         )
 
-    def _issue_tokens(self, user: User) -> TokenPair:
+    async def _issue_tokens(self, user: User) -> TokenPair:
+        profile = await self._profiles.get_profile(user.id) if self._profiles else None
         return TokenPair(
             access_token=self._tokens.create_access_token(
                 user_id=user.id,
                 mobile=user.mobile,
                 token_version=user.token_version,
                 name=user.name,
+                role=profile.role.value if profile else None,
+                specialties=list(profile.specialties) if profile else [],
             ),
             refresh_token=self._tokens.create_refresh_token(
                 user_id=user.id, mobile=user.mobile, token_version=user.token_version

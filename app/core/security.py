@@ -31,6 +31,8 @@ class TokenService:
         mobile: str,
         token_version: int = 0,
         name: str | None = None,
+        role: str | None = None,
+        specialties: list[str] | None = None,
     ) -> str:
         return self._create(
             TokenType.ACCESS,
@@ -39,6 +41,8 @@ class TokenService:
             ttl=timedelta(minutes=self._settings.access_token_ttl_minutes),
             token_version=token_version,
             name=name,
+            role=role,
+            specialties=specialties,
         )
 
     def create_refresh_token(
@@ -84,6 +88,8 @@ class TokenService:
         ttl: timedelta,
         token_version: int = 0,
         name: str | None = None,
+        role: str | None = None,
+        specialties: list[str] | None = None,
     ) -> str:
         now = datetime.now(timezone.utc)
         claims = {
@@ -98,6 +104,10 @@ class TokenService:
             # identity for it. Goes stale within the access token's lifetime,
             # which for a display name is harmless.
             "name": name,
+            # The Feed in acute-core decides who may see a post from these.
+            # Stale for at most one access token's lifetime, like the name.
+            "role": role,
+            "specialties": list(specialties or []),
             "iat": int(now.timestamp()),
             "exp": int((now + ttl).timestamp()),
         }

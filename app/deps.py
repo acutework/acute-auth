@@ -110,6 +110,7 @@ def build_auth_service(
     *,
     redis: Redis | None = None,
     users: UserRepository | None = None,
+    profiles: OnboardingRepository | None = None,
 ) -> AuthService:
     codec = ChallengeCodec(settings.jwt_secret, ttl_seconds=settings.otp_ttl_seconds)
     return AuthService(
@@ -120,6 +121,7 @@ def build_auth_service(
         tokens=TokenService(settings),
         rate_limiter=build_rate_limiter(redis),
         denylist=build_denylist(redis),
+        profiles=profiles,
         send_limit=RateLimit(
             limit=settings.otp_send_limit,
             window_seconds=settings.otp_send_window_seconds,
@@ -157,6 +159,16 @@ def _shared_session_factory():
     return _singleton("session_factory", lambda: build_session_factory(settings))
 
 
+def _onboarding_repository() -> OnboardingRepository:
+    """One instance: tokens read the profile onboarding writes, and two in-memory
+    copies would mean a token that never learns the worker's role."""
+    settings = get_settings()
+    return _singleton(
+        "onboarding_repository",
+        lambda: build_onboarding_repository(settings, _shared_session_factory()),
+    )
+
+
 def get_auth_service() -> AuthService:
     settings = get_settings()
     return _singleton(
@@ -165,6 +177,7 @@ def get_auth_service() -> AuthService:
             settings,
             redis=_redis_client(),
             users=build_user_repository(settings, _shared_session_factory()),
+            profiles=_onboarding_repository(),
         ),
     )
 
@@ -175,9 +188,7 @@ def get_onboarding_service() -> OnboardingService:
         "onboarding_service",
         lambda: build_onboarding_service(
             settings,
-            repository=build_onboarding_repository(
-                settings, _shared_session_factory()
-            ),
+            repository=_onboarding_repository(),
         ),
     )
 

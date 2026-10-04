@@ -5,6 +5,7 @@ from app.config import Settings
 from app.deps import (
     build_auth_service,
     build_catalog_repository,
+    build_onboarding_repository,
     build_onboarding_service,
     build_user_repository,
     get_auth_service,
@@ -52,8 +53,10 @@ def client(settings: Settings) -> TestClient:
     # One user store across both services, so a number that signed in here is
     # the same number the invite dispatcher recognises as having an account.
     users = build_user_repository(settings)
-    auth = build_auth_service(settings, users=users)
-    onboarding = build_onboarding_service(settings)
+    # One profile store, so a token issued after onboarding carries the role.
+    profiles = build_onboarding_repository(settings)
+    auth = build_auth_service(settings, users=users, profiles=profiles)
+    onboarding = build_onboarding_service(settings, repository=profiles)
     catalog = build_catalog_repository(settings)
 
     app.dependency_overrides[get_auth_service] = lambda: auth
