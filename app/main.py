@@ -14,6 +14,7 @@ from app.api.onboarding_routes import (
     places_router,
     router as onboarding_router,
 )
+from app.api.directory_routes import router as directory_router
 from app.api.internal_routes import router as internal_router
 from app.api.routes import router as auth_router
 from app.core.errors import AuthError
@@ -55,5 +56,6 @@ app.include_router(auth_router)
 app.include_router(onboarding_router)
 app.include_router(places_router)
 app.include_router(catalog_router)
+app.include_router(directory_router)
 # Service-to-service, key-guarded, and kept out of the public schema.
 app.include_router(internal_router)

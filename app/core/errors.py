@@ -149,3 +149,21 @@ class SessionSuperseded(AuthError):
     status_code = 401
     code = "session_superseded"
     message = "You were signed out. Sign in again."
+
+
+class InvalidLocation(AuthError):
+    status_code = 422
+    code = "invalid_location"
+    message = "Give a latitude, a longitude and a distance of 1 to 50 km, or none of them."
+
+
+class PersonNotFound(AuthError):
+    status_code = 404
+    code = "person_not_found"
+    message = "No such person."
+
+
+class InvalidCursor(AuthError):
+    status_code = 422
+    code = "invalid_cursor"
+    message = "That page marker is not valid. Start again from the top."

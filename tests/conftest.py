@@ -5,13 +5,16 @@ from app.config import Settings
 from app.deps import (
     build_auth_service,
     build_catalog_repository,
+    build_directory_repository,
     build_onboarding_repository,
     build_onboarding_service,
     build_user_repository,
     get_auth_service,
     get_catalog_repository,
+    get_directory_service,
     get_onboarding_service,
 )
+from app.directory.service import DirectoryService
 from app.main import app
 
 NEW_MOBILE = "918888888888"
@@ -44,7 +47,13 @@ def settings() -> Settings:
 
 
 @pytest.fixture
-def client(settings: Settings) -> TestClient:
+def profiles(settings: Settings):
+    """The onboarding store, shared by auth, onboarding and the directory."""
+    return build_onboarding_repository(settings)
+
+
+@pytest.fixture
+def client(settings: Settings, profiles) -> TestClient:
     """The real app, with every service built fresh for this test.
 
     Fresh services mean no user, OTP, rate-limit, revocation, onboarding or
@@ -54,7 +63,6 @@ def client(settings: Settings) -> TestClient:
     # the same number the invite dispatcher recognises as having an account.
     users = build_user_repository(settings)
     # One profile store, so a token issued after onboarding carries the role.
-    profiles = build_onboarding_repository(settings)
     auth = build_auth_service(settings, users=users, profiles=profiles)
     onboarding = build_onboarding_service(settings, repository=profiles)
     catalog = build_catalog_repository(settings)
@@ -62,6 +70,8 @@ def client(settings: Settings) -> TestClient:
     app.dependency_overrides[get_auth_service] = lambda: auth
     app.dependency_overrides[get_onboarding_service] = lambda: onboarding
     app.dependency_overrides[get_catalog_repository] = lambda: catalog
+    directory = DirectoryService(build_directory_repository(settings, onboarding=profiles))
+    app.dependency_overrides[get_directory_service] = lambda: directory
     yield TestClient(app)
     app.dependency_overrides.clear()
 

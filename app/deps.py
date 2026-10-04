@@ -21,6 +21,10 @@ from app.core.errors import InvalidToken
 from app.core.security import TokenService
 from app.db.redis import create_redis
 from app.db.session import create_engine, create_session_factory
+from app.directory.memory import InMemoryDirectoryRepository
+from app.directory.postgres import PostgresDirectoryRepository
+from app.directory.repository import DirectoryRepository
+from app.directory.service import DirectoryService
 from app.onboarding.memory import InMemoryOnboardingRepository
 from app.onboarding.postgres import PostgresOnboardingRepository
 from app.onboarding.repository import OnboardingRepository
@@ -74,6 +78,15 @@ def build_catalog_repository(settings: Settings, session_factory=None) -> Catalo
             session_factory or build_session_factory(settings)
         )
     return StaticCatalogRepository()
+
+
+def build_directory_repository(
+    settings: Settings, *, onboarding: OnboardingRepository, session_factory=None
+) -> DirectoryRepository:
+    if settings.uses_postgres:
+        return PostgresDirectoryRepository(session_factory or build_session_factory(settings))
+    # The in-memory directory reads the very store onboarding writes.
+    return InMemoryDirectoryRepository(onboarding)
 
 
 def build_onboarding_service(
@@ -194,6 +207,18 @@ def get_onboarding_service() -> OnboardingService:
 
 
 
+def get_directory_service() -> DirectoryService:
+    settings = get_settings()
+    return _singleton(
+        "directory_service",
+        lambda: DirectoryService(
+            build_directory_repository(
+                settings, onboarding=_onboarding_repository(), session_factory=_shared_session_factory()
+            )
+        ),
+    )
+
+
 def get_catalog_repository() -> CatalogRepository:
     settings = get_settings()
     return _singleton(
@@ -214,6 +239,8 @@ SettingsDep = Annotated[Settings, Depends(get_settings_dep)]
 
 
 OnboardingServiceDep = Annotated[OnboardingService, Depends(get_onboarding_service)]
+
+DirectoryServiceDep = Annotated[DirectoryService, Depends(get_directory_service)]
 
 
 
