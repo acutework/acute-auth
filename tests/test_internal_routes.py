@@ -2,7 +2,8 @@
 
 This endpoint exists so an invitation to someone who already has an account
 goes by push instead of costing an SMS. It must stay exactly that narrow: a
-boolean, behind a shared key, disclosing nothing else about the user table.
+boolean and the opaque id the push is addressed to, behind a shared key,
+disclosing nothing else about the user table.
 """
 
 from tests.conftest import EXISTING_MOBILE, make_settings
@@ -57,7 +58,7 @@ class TestLookup:
         )
 
         assert response.status_code == 200
-        assert response.json() == {"exists": True}
+        assert response.json()["exists"] is True
 
     def test_an_unknown_number_does_not(self):
         client, _ = make_client()
@@ -68,7 +69,7 @@ class TestLookup:
             headers={"X-Internal-Key": KEY},
         )
 
-        assert response.json() == {"exists": False}
+        assert response.json() == {"exists": False, "user_id": None}
 
     def test_a_number_is_canonicalised_before_lookup(self):
         """acute-core may pass '+91...'; the same person must be found."""
@@ -81,7 +82,7 @@ class TestLookup:
             headers={"X-Internal-Key": KEY},
         )
 
-        assert response.json() == {"exists": True}
+        assert response.json()["exists"] is True
 
     def test_an_unusable_number_is_answered_rather_than_erroring(self):
         client, _ = make_client()
@@ -93,9 +94,24 @@ class TestLookup:
         )
 
         assert response.status_code == 200
-        assert response.json() == {"exists": False}
+        assert response.json() == {"exists": False, "user_id": None}
 
-    def test_nothing_but_a_boolean_is_disclosed(self):
+    def test_the_id_given_is_the_account_the_number_signs_in_as(self):
+        """It is what an invitation push is addressed to, so it must be the
+        id the invitee's phone registered for pushes under."""
+        client, _ = make_client()
+        token = sign_in(client)
+        me = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+        body = client.get(
+            "/internal/users/exists",
+            params={"mobile": EXISTING_MOBILE},
+            headers={"X-Internal-Key": KEY},
+        ).json()
+
+        assert body["user_id"] == me.json()["id"]
+
+    def test_nothing_but_the_answer_and_the_id_is_disclosed(self):
         """A leak here would turn an invite feature into a user-table oracle."""
         client, _ = make_client()
         sign_in(client)
@@ -106,7 +122,7 @@ class TestLookup:
             headers={"X-Internal-Key": KEY},
         ).json()
 
-        assert set(body) == {"exists"}
+        assert set(body) == {"exists", "user_id"}
 
 
 class TestAccess:

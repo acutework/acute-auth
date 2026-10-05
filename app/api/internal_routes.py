@@ -1,7 +1,8 @@
 """Endpoints for other Acutework services, not for apps.
 
 acute-core asks narrow questions. Whether a mobile number has an account,
-so an invitation can go by push rather than an SMS - a bare boolean. Where an
+so an invitation can go by push rather than an SMS - a boolean, and the opaque
+user id the push is addressed to. Where an
 SOS is - its pincode, for the sender's associations, and a name for responders
 when the SOS came without one. And, for add-to-circle, one user's number and
 name by id. That last endpoint discloses one user's contact, only to a holder
@@ -35,16 +36,18 @@ async def user_exists(
     auth: AuthServiceDep,
     mobile: Annotated[str, Query(min_length=8, max_length=20)],
     x_internal_key: Annotated[str | None, Header()] = None,
-) -> dict[str, bool]:
-    """Whether `mobile` has an account. Nothing else is disclosed."""
+) -> dict[str, bool | str | None]:
+    """Whether `mobile` has an account, and its id to push to. Nothing else."""
     if not settings.internal_api_key or x_internal_key != settings.internal_api_key:
         raise InternalAccessDenied()
 
     try:
-        return {"exists": await auth.has_account(mobile)}
+        user_id = await auth.account_id(mobile)
     except AuthError:
         # A number that cannot be canonical cannot have an account.
-        return {"exists": False}
+        user_id = None
+    # "exists" stays so an acute-core that predates the id keeps working.
+    return {"exists": user_id is not None, "user_id": user_id}
 
 
 @router.get("/places/at")

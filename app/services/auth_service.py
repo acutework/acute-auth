@@ -135,14 +135,16 @@ class AuthService:
         claims = await self._decode_live(refresh_token, TokenType.REFRESH)
         await self._revoke(claims)
 
-    async def has_account(self, mobile: str) -> bool:
-        """Whether a number is registered.
+    async def account_id(self, mobile: str) -> str | None:
+        """The id of the account registered to a number, or None.
 
         Asked by acute-core so an invitation to someone who already has the
-        app goes by push rather than costing an SMS. Deliberately returns a
-        bare boolean - nothing about the user leaves identity.
+        app goes by push rather than costing an SMS. The id is what the push
+        is addressed to, since each phone signs in to the push vendor as its
+        user. It is opaque, and the only thing about the user that leaves.
         """
-        return await self._users.get_by_mobile(normalise_mobile(mobile)) is not None
+        user = await self._users.get_by_mobile(normalise_mobile(mobile))
+        return user.id if user else None
 
     async def contact(self, user_id: str) -> Contact | None:
         """For acute-core's add-to-circle; never exposed to apps.
