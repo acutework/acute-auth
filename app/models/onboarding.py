@@ -7,6 +7,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -92,6 +93,17 @@ class SavedPlaceRow(Base):
     """A place a worker works from, with coordinates kept for SOS matching."""
 
     __tablename__ = "saved_places"
+    # For the directory's located search, which only ever reads practice places.
+    __table_args__ = (
+        Index(
+            "ix_saved_places_practice_lat_lng",
+            "latitude",
+            "longitude",
+            postgresql_where=text(
+                "visibility = 'practice' AND latitude IS NOT NULL AND longitude IS NOT NULL"
+            ),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(

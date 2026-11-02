@@ -16,6 +16,24 @@ def distance_km(a: GeoPoint, b: GeoPoint) -> float:
     return 2 * EARTH_RADIUS_KM * math.asin(min(1.0, math.sqrt(h)))
 
 
+def bounding_box(point: GeoPoint, radius_km: float) -> tuple[float, float, float | None, float | None]:
+    """(min_lat, max_lat, min_lng, max_lng) holding every point within the radius.
+
+    Longitude bounds are None where a box cannot express them - over a pole or
+    across the antimeridian - so the caller filters on latitude alone there."""
+    # A metre more than asked, so floating-point error never trims a point on the edge.
+    d = (radius_km + 0.001) / EARTH_RADIUS_KM
+    dlat = math.degrees(d)
+    min_lat, max_lat = point.lat - dlat, point.lat + dlat
+    if abs(point.lat) + dlat >= 90:
+        return min_lat, max_lat, None, None
+    dlng = math.degrees(math.asin(math.sin(d) / math.cos(math.radians(point.lat))))
+    min_lng, max_lng = point.lng - dlng, point.lng + dlng
+    if min_lng < -180 or max_lng > 180:
+        return min_lat, max_lat, None, None
+    return min_lat, max_lat, min_lng, max_lng
+
+
 def nearest(person: Person, point: GeoPoint) -> tuple[float, str] | None:
     best: tuple[float, str] | None = None
     for location in person.practice_locations:

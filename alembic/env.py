@@ -32,6 +32,14 @@ if settings.database_url:
 
 target_metadata = Base.metadata
 
+# Expression indexes the migrations own but the models cannot declare in a way
+# autogenerate compares reliably; without this every check would want to drop them.
+UNMANAGED_INDEXES = {"ix_worker_profiles_search_trgm", "ix_worker_profiles_name_c"}
+
+
+def include_object(obj, name, type_, reflected, compare_to):
+    return not (type_ == "index" and name in UNMANAGED_INDEXES)
+
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
@@ -54,6 +62,7 @@ def run_migrations_offline() -> None:
     context.configure(
         url=url,
         target_metadata=target_metadata,
+        include_object=include_object,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -63,7 +72,9 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection, target_metadata=target_metadata, include_object=include_object
+    )
 
     with context.begin_transaction():
         context.run_migrations()

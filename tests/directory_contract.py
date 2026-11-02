@@ -43,6 +43,11 @@ class DirectoryContract:
         assert names(await everyone(directory, text="acls")) == ["Dr Vikram Mehta"]
         assert names(await everyone(directory, text="తెలు")) == ["Dr Sneha Patil"]
 
+    async def test_text_never_matches_across_the_join_between_two_specialties(self, directory, seed):
+        await seed("Dr Both", specialties=["Cardiology", "Oncology"])
+
+        assert await everyone(directory, text="logyonco") == []
+
     async def test_like_wildcards_in_the_text_are_literal(self, directory, seed):
         await seed("Dr Rao")
 
@@ -69,6 +74,24 @@ class DirectoryContract:
 
         assert names(await everyone(directory, near=HERE, radius_km=10)) == ["Dr Edge"]
         assert await everyone(directory, near=GeoPoint(HERE.lat - 0.0001, HERE.lng), radius_km=10) == []
+
+    async def test_a_practice_location_across_the_antimeridian_is_found_within_the_radius(self, directory, seed):
+        await seed("Dr Fiji", places=[("Taveuni", -16.80, -179.98, PRACTICE)])
+
+        assert names(await everyone(directory, near=GeoPoint(-16.80, 179.98), radius_km=10)) == ["Dr Fiji"]
+
+    async def test_a_practice_location_near_the_pole_is_found_within_the_radius(self, directory, seed):
+        await seed("Dr Polar", places=[("Station", 89.95, -100.0, PRACTICE)])
+
+        assert names(await everyone(directory, near=GeoPoint(89.95, 80.0), radius_km=20)) == ["Dr Polar"]
+
+    async def test_a_worker_with_one_near_and_one_far_practice_location_reports_the_nearer_distance(
+        self, directory, seed
+    ):
+        await seed("Dr Both", places=[("Delhi", 28.6, 77.2, PRACTICE), ("Ward", HERE.lat + 0.01, HERE.lng, PRACTICE)])
+        await seed("Dr Middle", places=[("Clinic", HERE.lat + 0.02, HERE.lng, PRACTICE)])
+
+        assert names(await everyone(directory, near=HERE, radius_km=5)) == ["Dr Both", "Dr Middle"]
 
     async def test_results_are_by_name_or_by_distance_when_located(self, directory, seed):
         await seed("Dr Zed", places=[("Z", HERE.lat + 0.01, HERE.lng, PRACTICE)])

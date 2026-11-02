@@ -5,10 +5,10 @@ element so any script compares as decoded text."""
 import math
 import uuid
 
-from sqlalchemy import JSON, case, cast, exists, func, literal, or_, select
+from sqlalchemy import JSON, case, cast, exists, func, literal, literal_column, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.directory.matching import EARTH_RADIUS_KM
+from app.directory.matching import EARTH_RADIUS_KM, bounding_box
 from app.directory.models import GeoPoint, Person, SearchQuery, person_from
 from app.directory.repository import DirectoryRepository
 from app.models.onboarding import (
@@ -80,21 +80,33 @@ class PostgresDirectoryRepository(DirectoryRepository):
                     func.lower(profile.display_name).like(like, escape="\\"),
                     _any_element(profile.specialties, lambda v: func.lower(v).like(like, escape="\\")),
                     _any_element(profile.tags, lambda v: func.lower(v).like(like, escape="\\")),
-                )
+                ),
+                # Lets the trigram index find candidates; the OR above still
+                # decides, so a match spanning two joined values never counts.
+                func.directory_search_text(profile.display_name, profile.specialties, profile.tags).like(
+                    like, escape="\\"
+                ),
             )
         if query.near is not None:
             place = SavedPlaceRow
-            nearest = (
-                select(func.min(_distance(query.near)))
-                .where(
-                    place.user_id == profile.user_id,
-                    place.visibility == "practice",
-                    place.latitude.is_not(None),
-                    place.longitude.is_not(None),
-                )
-                .scalar_subquery()
-            )
-            statement = statement.where(nearest <= (query.radius_km or 0) + 1e-6).order_by(
+            radius = (query.radius_km or 0) + 1e-6
+            min_lat, max_lat, min_lng, max_lng = bounding_box(query.near, radius)
+            in_box = [
+                place.user_id == profile.user_id,
+                # A literal, not a bound parameter: once Postgres falls back to
+                # a generic plan it cannot prove a parameter equals 'practice',
+                # and so could no longer use the partial index.
+                place.visibility == literal_column("'practice'"),
+                place.latitude.is_not(None),
+                place.longitude.is_not(None),
+                place.latitude.between(min_lat, max_lat),
+            ]
+            if min_lng is not None:
+                in_box.append(place.longitude.between(min_lng, max_lng))
+            # Dropping places outside the box cannot change the nearest one in
+            # range, since everything outside it is beyond the radius anyway.
+            nearest = select(func.min(_distance(query.near))).where(*in_box).scalar_subquery()
+            statement = statement.where(exists(select(place.id).where(*in_box)), nearest <= radius).order_by(
                 nearest, _by_name(profile), profile.user_id
             )
         else:
