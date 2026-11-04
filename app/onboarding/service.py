@@ -330,9 +330,26 @@ def _tidy_extras(profile: WorkerProfile) -> WorkerProfile:
     return replace(profile, about=about, tags=tags)
 
 
+# The key acute-core hands out for an upload, under the worker's own id. Only
+# that shape is stored, so a profile can never point at a stranger's photo, a
+# Feed object, or an arbitrary URL the app would then fetch.
+_PHOTO_KEY = re.compile(
+    r"profiles/(?P<owner>[0-9a-f-]{32,36})/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpg|png|webp)"
+)
+
+
+def _validate_photo(profile: WorkerProfile) -> None:
+    if profile.photo_url is None:
+        return
+    match = _PHOTO_KEY.fullmatch(profile.photo_url)
+    if match is None or match["owner"] != profile.user_id:
+        raise InvalidProfile("That photo was not uploaded from this account.")
+
+
 def _validate_profile(profile: WorkerProfile) -> None:
     if not (profile.display_name or "").strip():
         raise OnboardingIncomplete("A display name is required.")
+    _validate_photo(profile)
 
     missing: list[str] = []
     match profile.role:

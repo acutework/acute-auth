@@ -27,6 +27,7 @@ async def seed_person(
     complete: bool = True,
     organisation: str | None = None,
     about: str | None = None,
+    photo_url: str | None = None,
     membership_status: MembershipStatus = MembershipStatus.APPROVED,
 ) -> None:
     await onboarding.save_profile(
@@ -40,6 +41,7 @@ async def seed_person(
             nursing_council_reg_no="INC-1" if role == WorkerRole.NURSE else None,
             about=about,
             tags=list(tags),
+            photo_url=photo_url,
         )
     )
     await onboarding.save_state(

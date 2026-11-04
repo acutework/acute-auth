@@ -40,6 +40,8 @@ class Person:
     user_id: str
     name: str
     role: WorkerRole
+    # An object key in acute-core's bucket, which signs the URL to show it.
+    photo_url: str | None = None
     about: str | None = None
     tags: tuple[str, ...] = ()
     degrees: tuple[str, ...] = ()
@@ -77,6 +79,7 @@ def person_from(
         user_id=profile.user_id,
         name=profile.display_name,
         role=profile.role,
+        photo_url=profile.photo_url,
         about=profile.about,
         tags=tuple(profile.tags),
         degrees=tuple(profile.degrees),

@@ -7,6 +7,7 @@ class SearchItemOut(BaseModel):
     user_id: str
     name: str
     role: str
+    photo_url: str | None
     specialties: list[str]
     organisation: str | None
     nearest_place: str | None
@@ -31,6 +32,7 @@ class PersonOut(BaseModel):
     user_id: str
     name: str
     role: str
+    photo_url: str | None
     about: str | None
     tags: list[str]
     degrees: list[str]
